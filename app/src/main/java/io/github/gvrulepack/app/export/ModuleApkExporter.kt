@@ -158,6 +158,10 @@ object ModuleApkExporter {
             .build()
             .sign()
 
+        // 4) 产物自检：模板错位事故（v1.2.5，缓存旧模板）证明——宁可导出时报错，
+        // 也不让用户装上一个 LSPosed 列表里看不到的 APK。
+        verifyLsposedRecognition(signedOut)
+
         return Result(
             unsignedApk = unsignedOut,
             signedApk = signedOut,
@@ -165,6 +169,23 @@ object ModuleApkExporter {
             viewRuleCount = viewCount,
             dialogRuleCount = dialogCount,
         )
+    }
+
+    /** 产物必须满足 LSPosed legacy 识别条件：assets/xposed_init 入口 + manifest xposedminversion。 */
+    private fun verifyLsposedRecognition(apk: File) {
+        java.util.zip.ZipFile(apk).use { zip ->
+            check(zip.getEntry(RuleFormat.XPOSED_INIT_ASSET) != null) {
+                "模板缺少 ${RuleFormat.XPOSED_INIT_ASSET}（疑似旧模板缓存），已中止导出"
+            }
+            val entry = zip.getEntry("AndroidManifest.xml")
+                ?: throw IllegalStateException("产物缺少 AndroidManifest.xml")
+            val raw = zip.getInputStream(entry).use { it.readBytes() }
+            val ascii = String(raw, Charsets.ISO_8859_1).contains("xposedminversion")
+            val utf16 = String(raw, Charsets.UTF_16LE).contains("xposedminversion")
+            check(ascii || utf16) {
+                "模板 manifest 缺少 xposedminversion 识别键（疑似旧模板缓存），已中止导出"
+            }
+        }
     }
 
     /** 从 JKS / PKCS12 密钥库解析签名材料。 */

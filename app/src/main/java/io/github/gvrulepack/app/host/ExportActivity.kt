@@ -399,7 +399,8 @@ class ExportActivity : AppCompatActivity() {
     private fun safeFileName(name: String): String = name.replace(Regex("[\\\\/:*?\"<>|\\s]"), "_")
 
     private fun copyAssetTo(asset: String, dest: File): File {
-        if (dest.exists() && dest.length() > 0) return dest
+        // 无条件覆盖：旧版「存在即复用」会在升级工坊后一直用缓存里的旧模板，
+        // 导出的模块缺失 LSPosed 识别键（v1.2.5 修复的真实事故）。
         assets.open(asset).use { input ->
             dest.outputStream().use { output -> input.copyTo(output) }
         }
