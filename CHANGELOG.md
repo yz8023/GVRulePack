@@ -1,5 +1,9 @@
 # 更新日志
 
+## v1.2.2（2026-11-02）
+
+- **修复 v1.2.1 启动即崩**：`AbstractMethodError: AppCompatDelegateImpl.onCreateView`——R8（compat 模式、非优化 proguard 配置下）仍把 appcompat 的 Factory2 实现裁成 abstract。工厂 App 自此**关闭混淆与资源收缩**（换体积换稳定；导出的模块模板不受影响，仍保持混淆）。
+
 ## v1.2.1（2026-11-01）
 
 - **修复启动即崩**：`Missing android.support.FILE_PROVIDER_PATHS meta-data`——R8 构建管线把 androidx FileProvider 的 meta-data 解析裁剪成无条件抛异常。已改为自实现的轻量 `GvFileProvider`（零反射、零 XML 资源依赖），并关闭 R8 full mode、改用非优化 proguard 配置。

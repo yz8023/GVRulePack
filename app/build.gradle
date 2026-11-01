@@ -50,8 +50,11 @@ android {
 
     buildTypes {
         release {
-            minifyEnabled !cfgLite
-            shrinkResources !cfgLite
+            // R8 曾两连环破坏运行时：v1.2.0 把 FileProvider 的 meta-data 解析裁成无条件抛异常、
+            // v1.2.1 把 AppCompatDelegateImpl.onCreateView 裁成 abstract（启动即崩 AbstractMethodError）。
+            // 工厂 App 是低频工具，换体积换稳定：不混淆、不收缩（模块模板 :module 仍保持混淆）。
+            minifyEnabled false
+            shrinkResources false
             debuggable false
             if (cfgHasSigning) {
                 signingConfig signingConfigs.cfgrelease
