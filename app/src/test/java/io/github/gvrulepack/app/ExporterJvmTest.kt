@@ -107,6 +107,16 @@ class ExporterJvmTest {
             val init = String(zip.getInputStream(zip.getEntry(RuleFormat.XPOSED_INIT_ASSET)).readAllBytes())
             assertTrue(init.contains("io.github.gvrulepack.module.RulePackModule"))
 
+            // 经典 Xposed 模块标识：LSPosed 靠 manifest meta-data 的 xposedminversion
+            // 识别 legacy 模块（缺它列表里就不显示）；二进制 manifest 字符串池里应有该键
+            val manifestBytes = zip.getInputStream(zip.getEntry("AndroidManifest.xml")).readAllBytes()
+            // 二进制 manifest 字符串池可能是 UTF-16 或 UTF-8——两种形态都要探测
+            fun manifestHas(key: String): Boolean =
+                String(manifestBytes, Charsets.ISO_8859_1).contains(key) ||
+                    String(manifestBytes, Charsets.UTF_16LE).contains(key)
+            assertTrue("manifest 缺 xposedminversion（LSPosed 不识别）", manifestHas("xposedminversion"))
+            assertTrue("manifest 缺 xposeddescription", manifestHas("xposeddescription"))
+
             // 模块元数据随导出改写（LSPosed 列表里显示的模块名 = 填写的模块名）
             val prop = String(zip.getInputStream(zip.getEntry(RuleFormat.MODULE_PROP_PATH)).readAllBytes())
             assertTrue(prop.contains("name=测试模块"))

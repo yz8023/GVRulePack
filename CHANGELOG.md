@@ -1,5 +1,10 @@
 # 更新日志
 
+## v1.2.4（2026-11-02）
+
+- **修复导出的模块不被 LSPosed 识别（列表里不显示）**：LSPosed 对传统模块的识别条件是 manifest 里含 `xposedminversion` meta-data（源码 `isLegacyModule`），模板此前从未声明；现补上 `xposedmodule` / `xposedminversion` / `xposeddescription` 三件套，并加防回归测试断言。
+- 提示：传统模块在 LSPosed 里的推荐作用域读取的是 manifest `xposedscope`（暂未启用），**请在 LSPosed 中手动勾选目标应用**后强停重开。
+
 ## v1.2.3（2026-11-02）
 
 - **修复导出模块完全不生效**（两个根因）：① 导出器曾把规则写到 zip 根路径，而读取端按 `assets/rulepack.json` 查找——现在读写都用真实 zip 路径，并有防回归测试；② 模块改回**传统 Xposed API**（`assets/xposed_init` + api-82），LSPosed/EdXposed/太极全兼容（此前的 modern libxposed API 在旧框架上根本不加载），规则读取改为公开 API 的 ZipFile 直读（不再反射隐藏 API `AssetManager.addAssetPath`）。
