@@ -1,5 +1,9 @@
 # 更新日志
 
+## v1.2.1（2026-11-01）
+
+- **修复启动即崩**：`Missing android.support.FILE_PROVIDER_PATHS meta-data`——R8 构建管线把 androidx FileProvider 的 meta-data 解析裁剪成无条件抛异常。已改为自实现的轻量 `GvFileProvider`（零反射、零 XML 资源依赖），并关闭 R8 full mode、改用非优化 proguard 配置。
+
 ## v1.2.0（2026-11-01）
 
 **架构重做：模块工厂**——工坊 App 不再是 LSPosed 模块，而是「生成模块 APK 的工厂」：

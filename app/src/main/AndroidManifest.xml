@@ -25,14 +25,10 @@
 
         <!-- 生成的 APK 通过 FileProvider 分享 -->
         <provider
-            android:name="androidx.core.content.FileProvider"
+            android:name="io.github.gvrulepack.app.host.GvFileProvider"
             android:authorities="${applicationId}.fileprovider"
             android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/gv_paths" />
-        </provider>
+            android:grantUriPermissions="true" />
     </application>
 
 </manifest>

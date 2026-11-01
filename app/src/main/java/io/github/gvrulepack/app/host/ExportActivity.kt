@@ -17,7 +17,6 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.FileProvider
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.switchmaterial.SwitchMaterial
@@ -395,7 +394,7 @@ class ExportActivity : AppCompatActivity() {
 
     private fun shareApk() {
         val apk = pendingApk ?: return
-        val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", apk)
+        val uri = GvFileProvider.uriFor(this, apk)
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = "application/vnd.android.package-archive"
             putExtra(Intent.EXTRA_STREAM, uri)
