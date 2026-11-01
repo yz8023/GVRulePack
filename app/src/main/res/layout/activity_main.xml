@@ -123,6 +123,18 @@
             app:iconPadding="8dp"
             app:strokeWidth="1.5dp" />
 
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnClipboard"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginTop="4dp"
+            android:text="@string/btn_clipboard"
+            android:textSize="14sp"
+            app:icon="@drawable/ic_paste"
+            app:iconGravity="textStart"
+            app:iconPadding="8dp" />
+
         <!-- 列表标题 -->
         <LinearLayout
             android:layout_width="match_parent"

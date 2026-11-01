@@ -51,6 +51,27 @@ class MainActivity : AppCompatActivity() {
             importLauncher.launch(arrayOf("application/json", "text/*", "application/octet-stream", "*/*"))
         }
         binding.btnScope.setOnClickListener { openLsposedScope() }
+        binding.btnClipboard.setOnClickListener { importFromClipboard() }
+    }
+
+    /** 从剪贴板读取 GodViewer 导出的 JSON 并走同一套导入流程。 */
+    private fun importFromClipboard() {
+        val clipboard = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        val clip = clipboard.primaryClip
+        val text = clip?.takeIf { it.itemCount > 0 }
+            ?.getItemAt(0)
+            ?.coerceToText(this)
+            ?.toString()
+            ?.trim()
+        if (text.isNullOrEmpty()) {
+            toast("剪贴板是空的，先复制 GodViewer 导出的 JSON")
+            return
+        }
+        if (!text.startsWith("{")) {
+            toast("剪贴板内容不是 JSON，需要 GodViewer 导出的规则文本")
+            return
+        }
+        handleImport(text)
     }
 
     override fun onResume() {

@@ -18,8 +18,8 @@ plugins {
 // ---------------------------------------------------------------------------
 def cfgApplicationId = (findProperty("cfgApplicationId") ?: "io.github.gvrulepack.app").toString()
 def cfgAppLabel = (findProperty("cfgAppLabel") ?: "GV 规则包").toString()
-def cfgVersionCode = (findProperty("cfgVersionCode") ?: "1").toString().toInteger()
-def cfgVersionName = (findProperty("cfgVersionName") ?: "1.0.0").toString()
+def cfgVersionCode = (findProperty("cfgVersionCode") ?: "2").toString().toInteger()
+def cfgVersionName = (findProperty("cfgVersionName") ?: "1.1.0").toString()
 def cfgKeystore = findProperty("cfgKeystore")?.toString()
 def cfgKeystorePassword = findProperty("cfgKeystorePassword")?.toString()
 def cfgKeyAlias = findProperty("cfgKeyAlias")?.toString()

@@ -57,8 +57,8 @@ def parse_args(props: dict[str, str]) -> argparse.Namespace:
     p.add_argument("--rules", default=props.get("rulesBundle", ""), help="GodViewer 导出的 JSON")
     p.add_argument("--package", default=props.get("applicationId", "io.github.gvrulepack.app"), help="包名")
     p.add_argument("--name", default=props.get("appLabel", "GV 规则包"), help="模块应用名")
-    p.add_argument("--version-code", default=props.get("versionCode", "1"), help="versionCode")
-    p.add_argument("--version-name", default=props.get("versionName", "1.0.0"), help="versionName")
+    p.add_argument("--version-code", default=props.get("versionCode", "2"), help="versionCode")
+    p.add_argument("--version-name", default=props.get("versionName", "1.1.0"), help="versionName")
     p.add_argument("--output-name", default=props.get("outputName", ""), help="输出 APK 文件名")
     p.add_argument("--keystore", default=props.get("keystore", ""),
                    help="签名密钥文件路径；'auto'=自动生成；留空=debug 签名")
