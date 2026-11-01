@@ -2,9 +2,9 @@ package io.github.gvrulepack.app.host
 
 import android.content.Context
 import com.google.gson.Gson
-import io.github.gvrulepack.app.shared.RuleMerge
-import io.github.gvrulepack.app.shared.StoredApp
-import io.github.gvrulepack.app.shared.RuleBundleParser
+import io.github.gvrulepack.common.RuleMerge
+import io.github.gvrulepack.common.StoredApp
+import io.github.gvrulepack.common.RuleBundleParser
 import java.io.File
 import java.util.concurrent.Executors
 

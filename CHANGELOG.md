@@ -1,22 +1,28 @@
 # 更新日志
 
-## v1.1.0（versionCode 2）— 2026-11-01
+## v1.2.0（2026-11-01）
 
-- **新增：剪贴板导入** —— 主页新增「从剪贴板导入 JSON」，别人发你一段规则文本，
-  复制后直接粘贴导入，不必先存成文件
-- 三步上手引导文案同步更新（文件 / 剪贴板两种导入方式）
-- CI 修复：`setup-android` 默认包废弃导致的构建失败（改用 Runner 自带 sdkmanager）
+**架构重做：模块工厂**——工坊 App 不再是 LSPosed 模块，而是「生成模块 APK 的工厂」：
 
-## v1.0.0（versionCode 1）— 2026-11-01
+- **三模块工程**：`common`（共享规则模型/解析）+ `module`（模板 APK：hook 核心 + LSPosed 元数据）+ `app`（工坊）。
+- **生成独立模块 APK**：勾选应用 → 填模块名 / 包名（可随机）/ 版本 → 选签名 → ARSCLib 二进制改包内置模板 + apksig 重签名 → 导出 / 系统分享。每个配置一个 APK，多配置多包名可共存。
+- **生成的模块零配置**：内嵌所选规则 `assets/rulepack.json` + 推荐作用域 `scope.list`（安装后 LSPosed 自动提示），不依赖工坊 App。
+- **可配置签名**：内置公开默认签名，或导出时携带自己的 keystore（JKS/PKCS12，v1+v2 签名）。
+- **打包流水线升级**：`pack.py` 自动构建模板 → 模板与内置密钥入 assets → JVM 端到端测试（改包+签名+校验）→ 构建工厂 APK。
+- 工坊保留：文件 / 剪贴板导入规则、多配置列表、行内生成 / 删除；导出界面 Material 3 风格。
 
-首个版本：
+## v1.1.0（2026-11-01）
 
-- 导入 GodViewer 导出的 `godviewer-rules-bundle` JSON（v1 格式，文件选择）
-- libxposed API 102 入口，`Activity.onPostResume` + 全局布局回调自动重放
-  `view_rules`；`Dialog.show` / `PopupWindow` 尽力重放 `dialog_rules`
-- 视图匹配顺序与 GodViewer 一致：depth 路径 → 资源名 → 文本（版本一致时严格匹配）
-- ContentProvider 跨进程供给运行时导入的规则；`-PrulesBundle` 构建期预置 + 自动生成
-  LSPosed 推荐作用域（`scope.list`）
-- `pack.py` 一键打包：包名 / 应用名 / 版本 / 签名密钥 / 内置规则全可配，
-  支持 `--keystore auto` 自动生成密钥与 `--lite` 低内存模式
-- Material 3 宿主 UI，深色模式自适应；R8 混淆（入口类保持）
+- **剪贴板导入**：支持直接粘贴 `godviewer-rules-bundle` JSON 文本导入规则；打开页面若剪贴板有规则会提示导入，也可通过右上角「从剪贴板导入」按钮随时手动导入。
+- 新增 `CHANGELOG.md` 更新日志。
+
+## v1.0.0（2026-11-01）
+
+- **规则导入**：打开 GodViewer 规则分享页 → 点右上「Share」→ 选「GV 规则包」即可导入；或通过应用列表、文件管理器分享 JSON 给本应用（支持多配置）。
+- **LSPosed 模块**：Hook 范围 `onPostResume`、`onDestroy`、`Dialog.show`、`PopupWindow.invokePopup`——只在这些入口回放规则，不干扰业务逻辑。
+- **仅内嵌模式**：规则随 APK 打包，安装即可用，无需任何搭配应用。
+- **弹窗规则**：按 dialog/popup 根容器独立定位视图，匹配窗口内容，精准替换弹窗按钮与提示。
+- **模块保护**：`exceptionMode=protective`——目标应用崩溃时自动退出，不背锅。
+- **推荐作用域**：`META-INF/xposed/scope.list` 内置目标应用列表，安装后 LSPosed 自动提示勾选。
+- **精美 UI**：应用列表展示规则数量，支持行内「删除规则」；全中文应用名、矢量图标。
+- 一键打包：`python3 pack.py --keystore auto`，CI 全自动构建发布。

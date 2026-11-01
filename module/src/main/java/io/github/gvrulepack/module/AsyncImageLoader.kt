@@ -1,4 +1,4 @@
-package io.github.gvrulepack.app.module
+package io.github.gvrulepack.module
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory

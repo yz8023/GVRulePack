@@ -1,0 +1,193 @@
+package io.github.gvrulepack.app.export
+
+import com.android.apksig.ApkSigner
+import com.google.gson.Gson
+import com.google.gson.GsonBuilder
+import io.github.gvrulepack.common.BundleApp
+import io.github.gvrulepack.common.RuleBundleParser
+import io.github.gvrulepack.common.RuleFormat
+import io.github.gvrulepack.common.RulesBundle
+import com.reandroid.apk.ApkModule
+import com.reandroid.archive.ByteInputSource
+import java.io.File
+import java.security.KeyStore
+import java.security.PrivateKey
+import java.security.cert.X509Certificate
+import java.util.regex.Pattern
+
+/**
+ * 模块 APK 导出器（纯 JVM 逻辑，可在单元测试里直接跑通）：
+ *
+ * 1. 用 ARSCLib 打开模板 APK（assets/template.apk）
+ * 2. 替换 `assets/rulepack.json`（选中应用的规则）与 `META-INF/xposed/scope.list`（推荐作用域）
+ * 3. 二进制修改 AndroidManifest：包名 / 应用名 / 版本
+ * 4. 去掉旧签名（v1 条目 + 重写时丢弃 v2 签名块），用 apksig 重新签名
+ *
+ * 与 SimpleHook 导出插件 APK 的实现思路一致（ARSCLib 改包 + 重签名）。
+ */
+object ModuleApkExporter {
+
+    /** 签名材料（内置默认或用户自选 keystore 解析而来） */
+    data class SignMaterial(
+        val key: PrivateKey,
+        val certs: List<X509Certificate>,
+        val description: String,
+    )
+
+    data class Config(
+        val packageName: String,
+        val label: String,
+        val versionName: String,
+        val versionCode: Int,
+    )
+
+    data class Result(
+        val unsignedApk: File,
+        val signedApk: File,
+        val scopePackages: List<String>,
+        val viewRuleCount: Int,
+        val dialogRuleCount: Int,
+    )
+
+    private val gson: Gson = GsonBuilder().disableHtmlEscaping().create()
+
+    /** 把选中的应用序列化回 godviewer-rules-bundle（嵌入模块 assets）。 */
+    fun buildBundleJson(apps: List<BundleApp>): String {
+        require(apps.isNotEmpty()) { "没有选中任何应用" }
+        return gson.toJson(
+            RulesBundle(
+                format = RuleFormat.BUNDLE_FORMAT,
+                formatVersion = RuleFormat.BUNDLE_FORMAT_VERSION,
+                exportedAt = System.currentTimeMillis(),
+                apps = apps,
+            ),
+        )
+    }
+
+    /**
+     * 执行导出：模板 APK + 规则 bundle → 签名完成的模块 APK。
+     * 全部异常向上抛，由调用方转成用户提示。
+     */
+    fun export(
+        templateApk: File,
+        rulesBundleJson: String,
+        config: Config,
+        sign: SignMaterial,
+        unsignedOut: File,
+        signedOut: File,
+    ): Result {
+        require(config.packageName.matches(Regex("[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z][a-zA-Z0-9_]*)+"))) {
+            "包名格式不合法：${config.packageName}"
+        }
+
+        // 1) 解析规则，拿作用域列表
+        val parsed = RuleBundleParser.parse(rulesBundleJson)
+        require(parsed.ok) { "规则解析失败：${parsed.errors.joinToString("；")}" }
+        val scopePackages = parsed.apps.mapNotNull { it.packageName }.distinct()
+        val viewCount = parsed.apps.sumOf { it.viewRules.size }
+        val dialogCount = parsed.apps.sumOf { it.dialogRules.size }
+
+        // 2) ARSCLib 改包（loadApkFile 是静态工厂，返回 ApkModule 实例）
+        val module = ApkModule.loadApkFile(templateApk)
+        try {
+            val manifest = module.androidManifest
+                ?: throw IllegalStateException("模板缺少 AndroidManifest.xml")
+            manifest.packageName = config.packageName
+            manifest.versionName = config.versionName
+            manifest.versionCode = config.versionCode
+            manifest.setApplicationLabel(config.label)
+
+            val zipMap = module.zipEntryMap
+
+            // 替换预置规则
+            zipMap.remove(RuleFormat.EMBEDDED_RULEPACK_ASSET)
+            zipMap.add(
+                ByteInputSource(
+                    rulesBundleJson.toByteArray(Charsets.UTF_8),
+                    RuleFormat.EMBEDDED_RULEPACK_ASSET,
+                ),
+            )
+
+            // 替换推荐作用域（LSPosed 安装后自动列出这些应用）
+            zipMap.remove(RuleFormat.SCOPE_LIST_PATH)
+            zipMap.add(
+                ByteInputSource(
+                    (scopePackages.joinToString("\n") + "\n").toByteArray(Charsets.UTF_8),
+                    RuleFormat.SCOPE_LIST_PATH,
+                ),
+            )
+
+            // 去掉 v1 签名条目；v2/v3 签名块在重写 zip 时自然丢弃
+            zipMap.removeIf(Pattern.compile("^META-INF/[^/]+\\.(SF|RSA|DSA|EC)$|^META-INF/MANIFEST\\.MF$"))
+
+            module.writeApk(unsignedOut)
+        } finally {
+            runCatching { module.close() }
+        }
+
+        // 3) 重新签名（v1+v2）
+        val signerConfig = ApkSigner.SignerConfig.Builder(
+            "gvrulepack",
+            sign.key,
+            sign.certs,
+        ).build()
+        ApkSigner.Builder(listOf(signerConfig))
+            .setInputApk(unsignedOut)
+            .setOutputApk(signedOut)
+            .setV1SigningEnabled(true)
+            .setV2SigningEnabled(true)
+            .setV3SigningEnabled(false)
+            .setMinSdkVersion(23)
+            .setCreatedBy("GVRulePack Factory")
+            .build()
+            .sign()
+
+        return Result(
+            unsignedApk = unsignedOut,
+            signedApk = signedOut,
+            scopePackages = scopePackages,
+            viewRuleCount = viewCount,
+            dialogRuleCount = dialogCount,
+        )
+    }
+
+    /** 从 JKS / PKCS12 密钥库解析签名材料。 */
+    fun loadKeystore(
+        keystoreFile: File,
+        storePassword: CharArray,
+        alias: String,
+        keyPassword: CharArray,
+    ): SignMaterial {
+        val keyStore = try {
+            KeyStore.getInstance("JKS").apply { load(keystoreFile.inputStream(), storePassword) }
+        } catch (e: Exception) {
+            try {
+                KeyStore.getInstance("PKCS12").apply { load(keystoreFile.inputStream(), storePassword) }
+            } catch (e2: Exception) {
+                throw IllegalArgumentException(
+                    "无法读取密钥库（支持 JKS / PKCS12）：${e.message ?: e2.message}",
+                    e,
+                )
+            }
+        }
+        val key = keyStore.getKey(alias, keyPassword) as? PrivateKey
+            ?: throw IllegalArgumentException("别名「$alias」不存在或不是私钥")
+        val certs = keyStore.getCertificateChain(alias)
+            ?.map { it as X509Certificate }
+            ?: throw IllegalArgumentException("别名「$alias」缺少证书链")
+        return SignMaterial(key, certs, "${keystoreFile.name} / $alias")
+    }
+
+    fun sha256(file: File): String {
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buf = ByteArray(1 shl 16)
+            while (true) {
+                val n = input.read(buf)
+                if (n <= 0) break
+                digest.update(buf, 0, n)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
+    }
+}

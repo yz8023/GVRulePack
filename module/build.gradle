@@ -1,0 +1,48 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+// 模板模块：本身不直接分发，由工厂 App 在导出时二进制改包（包名/名称/版本/规则/作用域）并重签名
+android {
+    namespace 'io.github.gvrulepack.module'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "io.github.gvrulepack.module"
+        minSdk 23
+        targetSdk 35
+        versionCode 1
+        versionName "1.0.0"
+    }
+
+    buildTypes {
+        release {
+            // -PcfgLiteBuild=true 时跳过 R8（低内存机器）
+            def lite = project.findProperty("cfgLiteBuild")?.toString() in ["true", "1", "yes"]
+            minifyEnabled !lite
+            shrinkResources !lite
+            signingConfig signingConfigs.debug
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+
+    packaging {
+        resources {
+            merges += 'META-INF/xposed/*'
+        }
+    }
+}
+
+dependencies {
+    compileOnly "io.github.libxposed:api:102.0.0"
+    implementation project(':common')
+}

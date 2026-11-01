@@ -14,3 +14,6 @@ dist/
 # 由 -PrulesBundle=... 预置生成，不要提交个人规则
 app/src/main/assets/rulepack.json
 debug-version.properties
+# pack.py 自动生成
+app/src/main/assets/template.apk
+app/src/main/assets/default_sign.jks

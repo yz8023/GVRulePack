@@ -1,4 +1,4 @@
-package io.github.gvrulepack.app.shared
+package io.github.gvrulepack.common
 
 import com.google.gson.annotations.SerializedName
 
@@ -7,9 +7,7 @@ import com.google.gson.annotations.SerializedName
  * （字段名、语义与上游 app/src/main/java/com/godviewer/app/shared/model/ViewRule.kt 保持一致）。
  */
 
-/**
- * GodViewer 导出的规则包（格式：godviewer-rules-bundle）。
- */
+/** GodViewer 导出的规则包。 */
 data class RulesBundle(
     @SerializedName("format") val format: String? = null,
     @SerializedName("format_version") val formatVersion: Int = 0,
@@ -25,23 +23,7 @@ data class BundleApp(
     @SerializedName("dialog_rules") val dialogRules: List<ViewRule> = emptyList(),
 )
 
-/**
- * 宿主侧持久化的单个应用规则（Provider 提供给注入进程的形态）。
- */
-data class StoredApp(
-    @SerializedName("package") val packageName: String,
-    @SerializedName("label") val label: String? = null,
-    @SerializedName("view_rules") val viewRules: List<ViewRule> = emptyList(),
-    @SerializedName("dialog_rules") val dialogRules: List<ViewRule> = emptyList(),
-    @SerializedName("imported_at") val importedAt: Long = 0L,
-)
-
-/**
- * 一条持久化的视图修改规则（移植自 GodViewer ViewRule）。
- *
- * 标识字段（activityClass + viewClass + depth[]）用于重启后重新定位目标视图；
- * [original] 保存规则创建前的原始状态；[modified] 与 changed* 标志表示修改后的状态与生效范围。
- */
+/** 一条持久化的视图修改规则（移植自 GodViewer ViewRule）。 */
 data class ViewRule(
     // ---------- 标识 ----------
     @SerializedName("package_name")
@@ -89,7 +71,7 @@ data class ViewRule(
 
     fun key(): RuleKey = RuleKey(activityClass, depth, viewClass)
 
-    /** 轻量去重键（不依赖 data class equals 的列表比较） */
+    /** 轻量去重键 */
     fun dedupKey(): String = "$activityClass|${depth.joinToString(",")}|$viewClass"
 }
 
@@ -113,6 +95,25 @@ data class ViewAttrSnapshot(
     @SerializedName("scale_type") val scaleType: String?,
 )
 
+/** 宿主侧持久化的单个应用规则（工厂 App 内使用）。 */
+data class StoredApp(
+    @SerializedName("package") val packageName: String,
+    @SerializedName("label") val label: String? = null,
+    @SerializedName("view_rules") val viewRules: List<ViewRule> = emptyList(),
+    @SerializedName("dialog_rules") val dialogRules: List<ViewRule> = emptyList(),
+    @SerializedName("imported_at") val importedAt: Long = 0L,
+)
+
+/** 注入侧加载到的规则集合。 */
+data class ParsedRemoteRules(
+    val viewRules: List<ViewRule>,
+    val dialogRules: List<ViewRule>,
+) {
+    companion object {
+        val EMPTY = ParsedRemoteRules(emptyList(), emptyList())
+    }
+}
+
 /** 规则合并工具：按 [ViewRule.dedupKey] 去重，后者覆盖前者。 */
 object RuleMerge {
     fun merge(existing: List<ViewRule>, incoming: List<ViewRule>): List<ViewRule> {
@@ -122,15 +123,5 @@ object RuleMerge {
         existing.forEach { map[it.dedupKey()] = it }
         incoming.forEach { map[it.dedupKey()] = it }
         return map.values.toList()
-    }
-}
-
-/** 注入侧加载到的规则集合（预置 + 运行时导入合并后的结果）。 */
-data class ParsedRemoteRules(
-    val viewRules: List<ViewRule>,
-    val dialogRules: List<ViewRule>,
-) {
-    companion object {
-        val EMPTY = ParsedRemoteRules(emptyList(), emptyList())
     }
 }

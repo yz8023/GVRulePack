@@ -1,4 +1,4 @@
-package io.github.gvrulepack.app.shared
+package io.github.gvrulepack.common
 
 import com.google.gson.Gson
 import com.google.gson.JsonElement
@@ -36,16 +36,16 @@ object RuleBundleParser {
         }
 
         val format = root.str("format")
-        if (format != Constants.BUNDLE_FORMAT) {
+        if (format != RuleFormat.BUNDLE_FORMAT) {
             return ParseResult(
                 emptyList(),
-                listOf("格式不匹配：需要 ${Constants.BUNDLE_FORMAT}，实际为 ${format ?: "(空)"}"),
+                listOf("格式不匹配：需要 ${RuleFormat.BUNDLE_FORMAT}，实际为 ${format ?: "(空)"}"),
                 null,
             )
         }
         val version = runCatching { root.get("format_version")?.asInt }.getOrNull() ?: 0
-        if (version > Constants.BUNDLE_FORMAT_VERSION) {
-            errors += "警告：bundle 版本 $version 高于本模块支持的 ${Constants.BUNDLE_FORMAT_VERSION}，尽力解析"
+        if (version > RuleFormat.BUNDLE_FORMAT_VERSION) {
+            errors += "警告：bundle 版本 $version 高于本模块支持的 ${RuleFormat.BUNDLE_FORMAT_VERSION}，尽力解析"
         }
 
         val exportedAt = runCatching { root.get("exported_at")?.asLong }.getOrNull()

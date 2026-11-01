@@ -1,16 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- 作用域页跳转：解析 LSPosed / 旧 Xposed 管理器 -->
-    <queries>
-        <package android:name="org.lsposed.manager" />
-        <package android:name="de.robv.android.xposed.manager" />
-        <intent>
-            <action android:name="android.intent.action.MAIN" />
-            <category android:name="android.intent.category.LAUNCHER" />
-        </intent>
-    </queries>
-
     <application
         android:allowBackup="true"
         android:icon="@drawable/ic_launcher"
@@ -18,23 +8,31 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.GVRulePack">
 
-        <!-- 入口：导入 GodViewer 规则 JSON / 查看与管理已导入规则 -->
+        <!-- 工坊入口：导入规则、生成独立模块 APK -->
         <activity
             android:name=".host.MainActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
-                <category android:name="de.robv.android.xposed.category.MODULE_SETTINGS" />
             </intent-filter>
         </activity>
 
-        <!-- 被注入的目标进程通过该 Provider 读取运行时导入的规则 -->
+        <activity
+            android:name=".host.ExportActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <!-- 生成的 APK 通过 FileProvider 分享 -->
         <provider
-            android:name=".host.RulesProvider"
-            android:authorities="${applicationId}.rules"
-            android:exported="true"
-            android:grantUriPermissions="false" />
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/gv_paths" />
+        </provider>
     </application>
 
 </manifest>

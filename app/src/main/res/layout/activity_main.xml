@@ -111,14 +111,14 @@
             app:iconPadding="8dp" />
 
         <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnScope"
+            android:id="@+id/btnExport"
             style="@style/Widget.Material3.Button.OutlinedButton"
             android:layout_width="match_parent"
             android:layout_height="52dp"
             android:layout_marginTop="10dp"
-            android:text="@string/btn_scope"
+            android:text="@string/btn_export"
             android:textSize="15sp"
-            app:icon="@drawable/ic_scope"
+            app:icon="@drawable/ic_export"
             app:iconGravity="textStart"
             app:iconPadding="8dp"
             app:strokeWidth="1.5dp" />

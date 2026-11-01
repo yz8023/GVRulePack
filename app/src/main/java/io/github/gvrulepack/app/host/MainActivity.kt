@@ -1,9 +1,8 @@
 package io.github.gvrulepack.app.host
 
+import android.content.ClipboardManager
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
-import android.provider.Settings
 import android.view.LayoutInflater
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -13,15 +12,11 @@ import androidx.core.content.ContextCompat
 import io.github.gvrulepack.app.R
 import io.github.gvrulepack.app.databinding.ActivityMainBinding
 import io.github.gvrulepack.app.databinding.ItemAppBinding
-import io.github.gvrulepack.app.shared.StoredApp
+import io.github.gvrulepack.common.StoredApp
 
 /**
- * 宿主 UI（Material 3）：导入 GodViewer 导出的规则 JSON，查看/管理已导入规则。
- *
- * 使用流程（界面顶部也有说明）：
- * 1. 「导入规则 JSON」选择 GodViewer 导出的 bundle 文件
- * 2. 在 LSPosed 中勾选列表中应用的作用域（推荐应用会自动带出，见 README）
- * 3. 强制停止并重新打开目标应用 → 规则自动重放
+ * 「GV 规则工坊」主界面：导入 GodViewer 规则 JSON，管理已导入规则，
+ * 选中规则一键生成独立的 LSPosed 模块 APK（本 App 自身不是模块）。
  */
 class MainActivity : AppCompatActivity() {
 
@@ -50,13 +45,24 @@ class MainActivity : AppCompatActivity() {
         binding.btnImport.setOnClickListener {
             importLauncher.launch(arrayOf("application/json", "text/*", "application/octet-stream", "*/*"))
         }
-        binding.btnScope.setOnClickListener { openLsposedScope() }
+        binding.btnExport.setOnClickListener {
+            if (store.listApps().isEmpty()) {
+                toast("先导入规则再生成模块")
+                return@setOnClickListener
+            }
+            startActivity(Intent(this, ExportActivity::class.java))
+        }
         binding.btnClipboard.setOnClickListener { importFromClipboard() }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refreshList()
     }
 
     /** 从剪贴板读取 GodViewer 导出的 JSON 并走同一套导入流程。 */
     private fun importFromClipboard() {
-        val clipboard = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
         val clip = clipboard.primaryClip
         val text = clip?.takeIf { it.itemCount > 0 }
             ?.getItemAt(0)
@@ -74,17 +80,13 @@ class MainActivity : AppCompatActivity() {
         handleImport(text)
     }
 
-    override fun onResume() {
-        super.onResume()
-        refreshList()
-    }
-
     // ------------------------------------------------------------- 列表
 
     private fun refreshList() {
         val apps = store.listApps()
         binding.emptyState.visibility = if (apps.isEmpty()) android.view.View.VISIBLE else android.view.View.GONE
         binding.sectionCount.text = if (apps.isEmpty()) "" else "${apps.size} 个"
+        binding.btnExport.alpha = if (apps.isEmpty()) 0.5f else 1f
         binding.listContainer.removeAllViews()
 
         val inflater = LayoutInflater.from(this)
@@ -100,14 +102,13 @@ class MainActivity : AppCompatActivity() {
 
         item.itemLabel.text = buildString {
             append(app.label ?: app.packageName)
-            if (!installed) append("（未安装）")
+            if (!installed) append("（本机未安装）")
         }
         item.itemLabel.alpha = if (installed) 1f else 0.55f
 
         item.itemPackage.text = app.packageName
         item.itemStats.text = "视图规则 ${app.viewRules.size} · 弹窗规则 ${app.dialogRules.size}"
 
-        // 应用图标：装了取真实图标，未安装用模块眼睛占位
         runCatching {
             item.itemIcon.setImageDrawable(packageManager.getApplicationIcon(app.packageName))
             item.itemIcon.clearColorFilter()
@@ -119,8 +120,22 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
-        item.root.setOnClickListener { confirmDelete(app) }
+        item.root.setOnClickListener { showRowActions(app) }
         item.btnDelete.setOnClickListener { confirmDelete(app) }
+    }
+
+    private fun showRowActions(app: StoredApp) {
+        val options = arrayOf("生成模块 APK（仅含此应用）", "删除规则")
+        AlertDialog.Builder(this)
+            .setTitle(app.label ?: app.packageName)
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> ExportActivity.start(this, listOf(app.packageName))
+                    1 -> confirmDelete(app)
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
     }
 
     // ------------------------------------------------------------- 行为
@@ -135,8 +150,8 @@ class MainActivity : AppCompatActivity() {
                     append("· ${s.label ?: s.packageName} (${s.packageName})\n")
                     append("  视图规则 ${s.viewRuleCount} 条 · 弹窗规则 ${s.dialogRuleCount} 条\n")
                 }
-                append("\n接下来：在 LSPosed 勾选上述应用的作用域（本页可一键跳转），")
-                append("强制停止后重新打开目标应用即可生效。")
+                append("\n下一步：点「生成模块 APK」，把生成的模块发给朋友，")
+                append("安装后在 LSPosed 勾选作用域即可生效。")
             }
             if (result.errors.isNotEmpty()) {
                 if (result.imported.isNotEmpty()) append("\n\n")
@@ -155,7 +170,7 @@ class MainActivity : AppCompatActivity() {
     private fun confirmDelete(app: StoredApp) {
         AlertDialog.Builder(this)
             .setTitle("删除规则")
-            .setMessage("删除 ${app.label ?: app.packageName} 的全部规则？\n（删除后需重启目标应用恢复原样）")
+            .setMessage("删除 ${app.label ?: app.packageName} 的全部规则？")
             .setPositiveButton("删除") { _, _ ->
                 store.deleteApp(app.packageName)
                 toast("已删除")
@@ -163,28 +178,6 @@ class MainActivity : AppCompatActivity() {
             }
             .setNegativeButton("取消", null)
             .show()
-    }
-
-    /** 尽力跳转 LSPosed 作用域页；失败则退到系统应用信息页。 */
-    private fun openLsposedScope() {
-        val candidates = listOf(
-            "org.lsposed.manager" to "org.lsposed.manager.ui.activity.MainActivity",
-            "org.lsposed.manager" to "org.lsposed.manager.ui.WelcomeActivity",
-            "de.robv.android.xposed.manager" to "de.robv.android.xposed.manager.MainActivity",
-        )
-        for ((pkg, cls) in candidates) {
-            val intent = Intent().setClassName(pkg, cls)
-            if (packageManager.resolveActivity(intent, 0) != null) {
-                runCatching { startActivity(intent) }
-                    .onSuccess { return }
-                    .onFailure { /* 试下一个 */ }
-            }
-        }
-        runCatching {
-            startActivity(
-                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")),
-            )
-        }.onFailure { toast("无法打开作用域设置，请手动在 LSPosed 中勾选") }
     }
 
     private fun isInstalled(packageName: String): Boolean = runCatching {

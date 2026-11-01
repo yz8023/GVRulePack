@@ -1,25 +1,26 @@
-package io.github.gvrulepack.app.module
+package io.github.gvrulepack.module
 
 import android.app.Activity
 import android.app.Dialog
+import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.util.Log
 import android.view.View
 import android.view.ViewTreeObserver
 import android.widget.PopupWindow
-import io.github.gvrulepack.app.shared.ParsedRemoteRules
+import io.github.gvrulepack.common.ParsedRemoteRules
 import io.github.libxposed.api.XposedInterface
 import java.util.WeakHashMap
 
 /**
  * 规则自动重放引擎（移植自上游 GodViewer 的 ActivityLifecycleHooker 重放路径）：
  *
- * - hook `Activity.onPostResume`：Activity 恢复时应用该 Activity 的全部 view_rules
- * - 每个 Activity 注册一次 `OnGlobalLayoutListener`：列表刷新 / 数据加载后重新应用
+ * - hook `Activity.onPostResume`：应用该 Activity 的全部 view_rules
+ * - 每个 Activity 注册一次 `OnGlobalLayoutListener`：布局变化后重新应用
  * - `onDestroy` 时移除监听，WeakHashMap 防泄漏
  * - hook `Dialog.show` / `PopupWindow.invokePopup`：dialog_rules 尽力重放
  *
- * 与 GodViewer 的编辑模式不同，本模块是纯被动重放：不拦截触摸、不弹 UI、不常驻通知。
+ * 纯被动重放：不拦截触摸、不弹 UI、不发通知。
  */
 object ReplayEngine {
 
@@ -102,11 +103,11 @@ object ReplayEngine {
 
     // ------------------------------------------------------------ 规则加载
 
-    private fun ensureRules(context: android.content.Context): ParsedRemoteRules {
+    private fun ensureRules(context: Context): ParsedRemoteRules {
         if (rulesLoaded) return rules
         synchronized(this) {
             if (rulesLoaded) return rules
-            val loaded = RuleSource.load(context, moduleAppInfo)
+            val loaded = EmbeddedRules.load(context, moduleAppInfo)
             rules = loaded
             rulesLoaded = true
             Log.i(
@@ -156,10 +157,6 @@ object ReplayEngine {
 
     // ------------------------------------------------------- Dialog / Popup 重放
 
-    /**
-     * 在对话框 / PopupWindow 的 decor 内重放 dialog_rules。
-     * depth 按该 decor 为根解释；若规则记录了宿主 Activity 类名，则仅当其匹配时应用。
-     */
     private fun replayDialogLike(decor: View?) {
         if (decor == null) return
         val loaded = ensureRules(decor.context)
@@ -180,7 +177,6 @@ object ReplayEngine {
         }
 
         applyAll()
-        // 对话框首次 show 时内容可能还没布局完，post 一帧再试
         decor.post { runCatching { applyAll() } }
     }
 

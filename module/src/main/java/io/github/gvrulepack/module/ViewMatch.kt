@@ -1,4 +1,4 @@
-package io.github.gvrulepack.app.module
+package io.github.gvrulepack.module
 
 import android.app.Activity
 import android.content.Context
@@ -8,7 +8,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.ViewParent
 import android.widget.TextView
-import io.github.gvrulepack.app.shared.ViewRule
+import io.github.gvrulepack.common.ViewRule
 
 /**
  * 视图定位与匹配（移植自上游 GodViewer 的 ViewRuleUtil / findViewBestMatch，
@@ -119,17 +119,19 @@ fun resolveResourceId(root: View, resourceName: String): Int {
  */
 fun findViewBestMatch(activity: Activity, rule: ViewRule): View? {
     val strict = versionCode(activity) == rule.matchVersionCode
+    val resName = rule.resourceName
+    val ruleText = rule.text
     // 1) depth 优先
     findViewByDepth(activity.window.decorView, rule.depth)?.let { view ->
         if (view.javaClass.name == rule.viewClass) {
-            if (strict || rule.resourceName.isNullOrEmpty() || resourceNameOf(view) == rule.resourceName) {
+            if (strict || resName.isNullOrEmpty() || resourceNameOf(view) == resName) {
                 return view
             }
         }
     }
     // 2) resourceName 兜底
-    if (!rule.resourceName.isNullOrEmpty()) {
-        val id = resolveResourceId(activity.window.decorView, rule.resourceName)
+    if (!resName.isNullOrEmpty()) {
+        val id = resolveResourceId(activity.window.decorView, resName)
         if (id != View.NO_ID) {
             activity.findViewById<View>(id)?.let { view ->
                 if (view.javaClass.name == rule.viewClass) {
@@ -139,8 +141,8 @@ fun findViewBestMatch(activity: Activity, rule: ViewRule): View? {
         }
     }
     // 3) text 兜底
-    if (!rule.text.isNullOrEmpty()) {
-        findViewByText(activity.window.decorView, rule.text)?.let { view ->
+    if (!ruleText.isNullOrEmpty()) {
+        findViewByText(activity.window.decorView, ruleText)?.let { view ->
             if (view.javaClass.name == rule.viewClass) {
                 return view
             }
@@ -154,15 +156,17 @@ fun findViewBestMatch(activity: Activity, rule: ViewRule): View? {
  * dialog_rules 的 depth 路径按该根解释；再退到 res_name / text。
  */
 fun findViewInRoot(root: View, rule: ViewRule): View? {
+    val resName = rule.resourceName
+    val ruleText = rule.text
     findViewByDepth(root, rule.depth)?.let { view ->
         if (view.javaClass.name == rule.viewClass) {
-            if (rule.resourceName.isNullOrEmpty() || resourceNameOf(view) == rule.resourceName) {
+            if (resName.isNullOrEmpty() || resourceNameOf(view) == resName) {
                 return view
             }
         }
     }
-    if (!rule.resourceName.isNullOrEmpty()) {
-        val id = resolveResourceId(root, rule.resourceName)
+    if (!resName.isNullOrEmpty()) {
+        val id = resolveResourceId(root, resName)
         if (id != View.NO_ID) {
             val view = root.findViewById<View>(id)
             if (view != null && view.javaClass.name == rule.viewClass) {
@@ -170,8 +174,8 @@ fun findViewInRoot(root: View, rule: ViewRule): View? {
             }
         }
     }
-    if (!rule.text.isNullOrEmpty()) {
-        findViewByText(root, rule.text)?.let { view ->
+    if (!ruleText.isNullOrEmpty()) {
+        findViewByText(root, ruleText)?.let { view ->
             if (view.javaClass.name == rule.viewClass) {
                 return view
             }

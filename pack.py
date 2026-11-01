@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-GVRulePack 一键打包脚本（类似 SimpleHook 的「导出插件 APK」，但在电脑上、从源码构建）：
+GV 规则工坊 一键打包脚本：
 
-  读取 rulepack.properties（或命令行参数）→ 可选自动生成密钥 → gradle assembleRelease
-  → 复制签名后的 APK 到 dist/ 并打印校验和。
+  1. 构建「模块模板」APK（:module）
+  2. 模板 + 内置默认签名密钥 放入工厂 assets
+  3. 跑 JVM 端到端测试（导出器改包+签名全链路验证）
+  4. 构建「工厂 App」APK（:app）→ 复制到 dist/
+
+工厂 App 装到手机后：导入 GodViewer JSON → 配置 → 生成独立模块 APK。
 
 用法：
-  cp rulepack.properties.example rulepack.properties   # 按需修改
+  cp rulepack.properties.example rulepack.properties   # 按需修改（工厂自身的包名/名称/签名）
   python3 pack.py
-
-也可以不看配置文件，全部走命令行：
-  python3 pack.py --rules douyin.json --package com.example.foo \\
-      --name "抖音去广告规则包" --version-name 1.0 --keystore auto
 """
 
 from __future__ import annotations
@@ -28,11 +28,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 CONFIG_FILE = ROOT / "rulepack.properties"
 DIST_DIR = ROOT / "dist"
-BUILD_APK = ROOT / "app" / "build" / "outputs" / "apk" / "release" / "app-release.apk"
 
-AUTO_KEYSTORE = DIST_DIR / "gvrulepack-auto.jks"
-AUTO_STOREPASS = "gvrulepack"
-AUTO_KEYALIAS = "gvrulepack"
+MODULE_APK = ROOT / "module" / "build" / "outputs" / "apk" / "release" / "module-release.apk"
+TEMPLATE_ASSET = ROOT / "app" / "src" / "main" / "assets" / "template.apk"
+DEFAULT_KS_ASSET = ROOT / "app" / "src" / "main" / "assets" / "default_sign.jks"
+FACTORY_APK = ROOT / "app" / "build" / "outputs" / "apk" / "release" / "app-release.apk"
+
+# 与 common/RuleFormat.kt 保持一致
+KS_PASSWORD = "gvrulepack"
+KS_ALIAS = "gvrulepack"
 
 
 # --------------------------------------------------------------------------- 配置
@@ -42,9 +46,7 @@ def load_properties(path: Path) -> dict[str, str]:
         return props
     for raw in path.read_text(encoding="utf-8").splitlines():
         line = raw.strip()
-        if not line or line.startswith("#"):
-            continue
-        if "=" not in line:
+        if not line or line.startswith("#") or "=" not in line:
             continue
         key, _, value = line.partition("=")
         props[key.strip()] = value.strip()
@@ -52,30 +54,26 @@ def load_properties(path: Path) -> dict[str, str]:
 
 
 def parse_args(props: dict[str, str]) -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="GVRulePack 一键打包")
+    p = argparse.ArgumentParser(description="GV 规则工坊 一键打包")
     p.add_argument("--config", default=str(CONFIG_FILE), help="配置文件路径（默认 rulepack.properties）")
-    p.add_argument("--rules", default=props.get("rulesBundle", ""), help="GodViewer 导出的 JSON")
-    p.add_argument("--package", default=props.get("applicationId", "io.github.gvrulepack.app"), help="包名")
-    p.add_argument("--name", default=props.get("appLabel", "GV 规则包"), help="模块应用名")
-    p.add_argument("--version-code", default=props.get("versionCode", "2"), help="versionCode")
-    p.add_argument("--version-name", default=props.get("versionName", "1.1.0"), help="versionName")
+    p.add_argument("--package", default=props.get("applicationId", "io.github.gvrulepack.app"), help="工厂包名")
+    p.add_argument("--name", default=props.get("appLabel", "GV 规则工坊"), help="工厂应用名")
+    p.add_argument("--version-code", default=props.get("versionCode", "3"), help="versionCode")
+    p.add_argument("--version-name", default=props.get("versionName", "1.2.0"), help="versionName")
     p.add_argument("--output-name", default=props.get("outputName", ""), help="输出 APK 文件名")
     p.add_argument("--keystore", default=props.get("keystore", ""),
-                   help="签名密钥文件路径；'auto'=自动生成；留空=debug 签名")
+                   help="工厂自身签名；'auto'=自动生成；留空=debug 签名")
     p.add_argument("--keystore-password", default=props.get("keystorePassword", ""))
     p.add_argument("--key-alias", default=props.get("keyAlias", ""))
     p.add_argument("--key-password", default=props.get("keyPassword", ""))
-    p.add_argument("--dry-run", action="store_true", help="只打印将要执行的 gradle 命令")
-    p.add_argument("--lite", action="store_true",
-                   help="低内存模式：跳过 R8 混淆/资源收缩（适合 2GB 内存机器）")
+    p.add_argument("--lite", action="store_true", help="低内存模式：跳过 R8 混淆/资源收缩")
+    p.add_argument("--skip-test", action="store_true", help="跳过导出器端到端测试")
+    p.add_argument("--dry-run", action="store_true", help="只打印将要执行的构建步骤")
     return p.parse_args()
 
 
-# --------------------------------------------------------------------------- 签名
+# --------------------------------------------------------------------------- 工具
 def find_keytool() -> Path | None:
-    explicit = os.environ.get("KEYTOOL")
-    if explicit and Path(explicit).exists():
-        return Path(explicit)
     found = shutil.which("keytool")
     if found:
         return Path(found)
@@ -87,33 +85,6 @@ def find_keytool() -> Path | None:
     return None
 
 
-def ensure_auto_keystore(dry_run: bool = False) -> Path:
-    """在 dist/ 生成一把自用密钥并复用（保证多次打包签名一致、可覆盖安装）。"""
-    if AUTO_KEYSTORE.exists():
-        print(f"[pack] 复用自动密钥: {AUTO_KEYSTORE}")
-        return AUTO_KEYSTORE
-    keytool = find_keytool()
-    if keytool is None:
-        sys.exit("[pack] 错误: 找不到 keytool（请装 JDK 或设置 JAVA_HOME），"
-                 "也可以自己提供 --keystore 或去掉签名配置用 debug 签名")
-    if dry_run:
-        print(f"[pack] dry-run: 将在 {AUTO_KEYSTORE} 生成自动密钥（keytool）")
-        return AUTO_KEYSTORE
-    DIST_DIR.mkdir(parents=True, exist_ok=True)
-    cmd = [
-        str(keytool), "-genkeypair", "-noprompt",
-        "-keystore", str(AUTO_KEYSTORE),
-        "-storepass", AUTO_STOREPASS, "-keypass", AUTO_STOREPASS,
-        "-alias", AUTO_KEYALIAS,
-        "-keyalg", "RSA", "-keysize", "2048", "-validity", "10950",
-        "-dname", "CN=GVRulePack, OU=GVRulePack, O=GVRulePack, L=City, ST=State, C=CN",
-    ]
-    print(f"[pack] 生成自动密钥: {AUTO_KEYSTORE}")
-    subprocess.run(cmd, check=True)
-    return AUTO_KEYSTORE
-
-
-# --------------------------------------------------------------------------- 构建
 def find_gradle() -> list[str]:
     wrapper = ROOT / "gradlew"
     if wrapper.exists():
@@ -125,12 +96,59 @@ def find_gradle() -> list[str]:
              "或先执行 `gradle wrapper --gradle-version 8.7`，也可用 Android Studio 构建")
 
 
-def validate_rules(path: Path) -> None:
-    if not path.exists():
-        sys.exit(f"[pack] 错误: 规则文件不存在: {path}")
-    text = path.read_text(encoding="utf-8")
-    if '"godviewer-rules-bundle"' not in text:
-        sys.exit("[pack] 错误: 该文件不是 godviewer-rules-bundle 格式（缺少 format 标识）")
+def ensure_default_keystore() -> None:
+    """工厂内置的默认签名密钥（生成的模块 APK 用它签名，公开无机密性）。"""
+    if DEFAULT_KS_ASSET.exists():
+        return
+    keytool = find_keytool()
+    if keytool is None:
+        sys.exit("[pack] 错误: 找不到 keytool，无法生成内置默认签名密钥")
+    DEFAULT_KS_ASSET.parent.mkdir(parents=True, exist_ok=True)
+    cmd = [
+        str(keytool), "-genkeypair", "-noprompt",
+        "-keystore", str(DEFAULT_KS_ASSET),
+        "-storepass", KS_PASSWORD, "-keypass", KS_PASSWORD,
+        "-alias", KS_ALIAS,
+        "-keyalg", "RSA", "-keysize", "2048", "-validity", "10950",
+        "-dname", "CN=GVRulePack Module, OU=GVRulePack, O=GVRulePack, L=City, ST=State, C=CN",
+    ]
+    print(f"[pack] 生成内置默认签名密钥: {DEFAULT_KS_ASSET}")
+    subprocess.run(cmd, check=True)
+
+
+def ensure_auto_keystore(dry_run: bool = False) -> Path:
+    auto = DIST_DIR / "gvrulepack-auto.jks"
+    if auto.exists():
+        print(f"[pack] 复用自动密钥: {auto}")
+        return auto
+    keytool = find_keytool()
+    if keytool is None:
+        sys.exit("[pack] 错误: 找不到 keytool（请装 JDK 或设置 JAVA_HOME）")
+    if dry_run:
+        print(f"[pack] dry-run: 将在 {auto} 生成自动密钥")
+        return auto
+    DIST_DIR.mkdir(parents=True, exist_ok=True)
+    cmd = [
+        str(keytool), "-genkeypair", "-noprompt",
+        "-keystore", str(auto),
+        "-storepass", KS_PASSWORD, "-keypass", KS_PASSWORD,
+        "-alias", KS_ALIAS,
+        "-keyalg", "RSA", "-keysize", "2048", "-validity", "10950",
+        "-dname", "CN=GVRulePack, OU=GVRulePack, O=GVRulePack, L=City, ST=State, C=CN",
+    ]
+    print(f"[pack] 生成自动密钥: {auto}")
+    subprocess.run(cmd, check=True)
+    return auto
+
+
+def run_gradle(gradle: list[str], tasks: list[str], extra: list[str], dry_run: bool) -> None:
+    cmd = gradle + tasks + ["--console=plain"] + extra
+    print("[pack] $ " + " ".join(cmd))
+    if dry_run:
+        return
+    result = subprocess.run(cmd, cwd=str(ROOT))
+    if result.returncode != 0:
+        sys.exit(f"[pack] 构建失败 (exit={result.returncode}): {' '.join(tasks)}")
 
 
 def sha256_of(path: Path) -> str:
@@ -142,44 +160,60 @@ def sha256_of(path: Path) -> str:
 
 
 def main() -> None:
-    # 先取出 --config，用对应文件做默认值；命令行显式参数始终优先
     pre = argparse.ArgumentParser(add_help=False)
     pre.add_argument("--config", default=str(CONFIG_FILE))
     pre_args, _ = pre.parse_known_args()
     props = load_properties(Path(pre_args.config))
     args = parse_args(props)
 
-    print(f"[pack] 配置: 包名={args.package} 名称={args.name} 版本={args.version_name}({args.version_code})")
+    print(f"[pack] 工厂: 包名={args.package} 名称={args.name} 版本={args.version_name}({args.version_code})")
 
     gradle = find_gradle()
-    cmd = gradle + ["assembleRelease", "--console=plain",
-                    f"-PcfgApplicationId={args.package}",
-                    f"-PcfgAppLabel={args.name}",
-                    f"-PcfgVersionCode={args.version_code}",
-                    f"-PcfgVersionName={args.version_name}"]
+    lite = ["-PcfgLiteBuild=true"] if args.lite else []
     if args.lite:
-        cmd.append("-PcfgLiteBuild=true")
         print("[pack] 低内存模式: 跳过 R8 / 资源收缩")
 
-    # 规则预置
-    if args.rules:
-        rules_path = Path(args.rules)
-        if not rules_path.is_absolute():
-            rules_path = ROOT / rules_path
-        validate_rules(rules_path)
-        cmd.append(f"-PrulesBundle={rules_path}")
-        print(f"[pack] 预置规则: {rules_path}")
-    else:
-        print("[pack] 未配置规则文件 → 打「通用版」（装好后在 App 内导入）")
+    # ---- 第 1 步：模块模板 ----
+    print("\n[pack] === 1/4 构建模块模板（:module）===")
+    run_gradle(gradle, [":module:assembleRelease"], lite, args.dry_run)
+    if not args.dry_run:
+        if not MODULE_APK.exists():
+            sys.exit(f"[pack] 错误: 模板产物不存在 {MODULE_APK}")
+        TEMPLATE_ASSET.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(MODULE_APK, TEMPLATE_ASSET)
+        print(f"[pack] 模板已放入 assets: {TEMPLATE_ASSET} "
+              f"({TEMPLATE_ASSET.stat().st_size // 1024} KB)")
 
-    # 签名
+    # ---- 第 2 步：内置默认签名密钥 ----
+    print("\n[pack] === 2/4 准备内置默认签名密钥 ===")
+    if args.dry_run:
+        print(f"[pack] dry-run: 确保 {DEFAULT_KS_ASSET} 存在（缺失则 keytool 生成）")
+    else:
+        ensure_default_keystore()
+
+    # ---- 第 3 步：导出器端到端测试 ----
+    if args.skip_test:
+        print("\n[pack] === 3/4 导出器测试：已跳过（--skip-test）===")
+    else:
+        print("\n[pack] === 3/4 导出器端到端测试（:app:testDebugUnitTest）===")
+        run_gradle(gradle, [":app:testDebugUnitTest"], [], args.dry_run)
+        print("[pack] 测试通过 ✔")
+
+    # ---- 第 4 步：工厂 App ----
+    print("\n[pack] === 4/4 构建工厂 App（:app）===")
+    extra = lite + [
+        f"-PcfgApplicationId={args.package}",
+        f"-PcfgAppLabel={args.name}",
+        f"-PcfgVersionCode={args.version_code}",
+        f"-PcfgVersionName={args.version_name}",
+    ]
     if args.keystore.strip().lower() == "auto":
-        ks = ensure_auto_keystore(dry_run=args.dry_run)
-        cmd += [f"-PcfgKeystore={ks}",
-                f"-PcfgKeystorePassword={AUTO_STOREPASS}",
-                f"-PcfgKeyAlias={AUTO_KEYALIAS}",
-                f"-PcfgKeyPassword={AUTO_STOREPASS}"]
-        print("[pack] 签名: 自动生成的密钥")
+        ks = ensure_auto_keystore(args.dry_run)
+        extra += [f"-PcfgKeystore={ks}",
+                  f"-PcfgKeystorePassword={KS_PASSWORD}",
+                  f"-PcfgKeyAlias={KS_ALIAS}",
+                  f"-PcfgKeyPassword={KS_PASSWORD}"]
+        print("[pack] 工厂签名: 自动生成的密钥")
     elif args.keystore.strip():
         ks = Path(args.keystore)
         if not ks.is_absolute():
@@ -188,45 +222,35 @@ def main() -> None:
             sys.exit(f"[pack] 错误: 密钥文件不存在: {ks}")
         if not args.keystore_password or not args.key_alias:
             sys.exit("[pack] 错误: 使用自定义密钥时必须提供 keystorePassword 与 keyAlias")
-        cmd += [f"-PcfgKeystore={ks}",
-                f"-PcfgKeystorePassword={args.keystore_password}",
-                f"-PcfgKeyAlias={args.key_alias}",
-                f"-PcfgKeyPassword={args.key_password or args.keystore_password}"]
-        print(f"[pack] 签名: {ks}")
+        extra += [f"-PcfgKeystore={ks}",
+                  f"-PcfgKeystorePassword={args.keystore_password}",
+                  f"-PcfgKeyAlias={args.key_alias}",
+                  f"-PcfgKeyPassword={args.key_password or args.keystore_password}"]
+        print(f"[pack] 工厂签名: {ks}")
     else:
-        print("[pack] 签名: debug（如需正式签名请配置 keystore 或 --keystore auto）")
+        print("[pack] 工厂签名: debug")
 
+    run_gradle(gradle, ["assembleRelease"], extra, args.dry_run)
     if args.dry_run:
-        print("[pack] dry-run, 将执行:")
-        print("  " + " ".join(cmd))
+        print("\n[pack] dry-run 完成")
         return
+    if not FACTORY_APK.exists():
+        sys.exit(f"[pack] 错误: 找不到工厂产物 {FACTORY_APK}")
 
-    print("[pack] 开始构建: " + " ".join(cmd))
-    result = subprocess.run(cmd, cwd=str(ROOT))
-    if result.returncode != 0:
-        sys.exit(f"[pack] 构建失败 (exit={result.returncode})")
-    if not BUILD_APK.exists():
-        sys.exit(f"[pack] 错误: 找不到构建产物 {BUILD_APK}")
-
-    # 输出到 dist/
     DIST_DIR.mkdir(parents=True, exist_ok=True)
     safe_name = args.output_name.strip() or f"{args.name}-{args.version_name}.apk"
     if not safe_name.endswith(".apk"):
         safe_name += ".apk"
     safe_name = safe_name.replace("/", "_").replace("\\", "_").replace(":", "_")
     out = DIST_DIR / safe_name
-    shutil.copy2(BUILD_APK, out)
+    shutil.copy2(FACTORY_APK, out)
 
-    size_kb = out.stat().st_size / 1024
     print("")
     print("[pack] ✔ 打包完成")
-    print(f"[pack]   APK   : {out}")
-    print(f"[pack]   大小  : {size_kb:.0f} KB")
-    print(f"[pack]   SHA256: {sha256_of(out)}")
-    if not args.rules:
-        print("[pack]   提示: 通用版请在安装后打开 App 导入规则 JSON，并在 LSPosed 勾选作用域")
-    else:
-        print("[pack]   提示: 安装后在 LSPosed 确认勾选推荐应用，强停目标应用后打开即可")
+    print(f"[pack]   工厂 APK : {out} ({out.stat().st_size / 1024:.0f} KB)")
+    print(f"[pack]   SHA256   : {sha256_of(out)}")
+    print(f"[pack]   内置模板 : {TEMPLATE_ASSET} ({TEMPLATE_ASSET.stat().st_size / 1024:.0f} KB)")
+    print("[pack]   安装工厂 App → 导入 GodViewer JSON → 「生成模块 APK」→ 发给朋友")
 
 
 if __name__ == "__main__":

@@ -1,10 +1,10 @@
-package io.github.gvrulepack.app.module
+package io.github.gvrulepack.module
 
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
-import io.github.gvrulepack.app.shared.ViewRule
+import io.github.gvrulepack.common.ViewRule
 
 /**
  * 把 [ViewRule] 的 modified 快照应用到具体 View（移植自上游 GodViewer 的 ViewRuleApplier）。

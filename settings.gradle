@@ -1,2 +1,4 @@
 rootProject.name = "GVRulePack"
+include ':common'
+include ':module'
 include ':app'
