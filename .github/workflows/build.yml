@@ -17,8 +17,12 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      # runner 自带 Android SDK（ANDROID_HOME 已配置）；
+      # 不再用 android-actions/setup-android——新版 sdkmanager 已移除 'tools' 包导致其失败
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        run: |
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager "platforms;android-35" "build-tools;34.0.0"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v3
