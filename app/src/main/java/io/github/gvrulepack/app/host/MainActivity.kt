@@ -100,11 +100,9 @@ class MainActivity : AppCompatActivity() {
     private fun fillRow(item: ItemAppBinding, app: StoredApp) {
         val installed = isInstalled(app.packageName)
 
-        item.itemLabel.text = buildString {
-            append(app.label ?: app.packageName)
-            if (!installed) append("（本机无此应用·不影响生成）")
-        }
-        item.itemLabel.alpha = if (installed) 1f else 0.55f
+        item.itemLabel.text = app.label ?: app.packageName
+        item.itemLabel.alpha = if (installed) 1f else 0.85f
+        item.itemBadge.visibility = if (installed) android.view.View.GONE else android.view.View.VISIBLE
 
         item.itemPackage.text = app.packageName
         item.itemStats.text = "视图规则 ${app.viewRules.size} · 弹窗规则 ${app.dialogRules.size}"

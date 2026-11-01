@@ -1,19 +1,121 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- GV 图标：深色圆角底 + 四色菱形 + 白色中心 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="48dp"
-    android:height="48dp"
-    android:viewportWidth="48"
-    android:viewportHeight="48">
-    <!-- 圆角底 -->
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- 背景圆角方块，带渐变 -->
+    <path android:pathData="M24,0 L84,0 A24,24 0 0 1 108,24 L108,84 A24,24 0 0 1 84,108 L24,108 A24,24 0 0 1 0,84 L0,24 A24,24 0 0 1 24,0 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="0"
+                android:startY="0"
+                android:endX="108"
+                android:endY="108"
+                android:type="linear">
+                <item android:offset="0" android:color="#2A3F54"/>
+                <item android:offset="1" android:color="#1A2530"/>
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- 左上菱形（蓝） -->
+    <path android:pathData="M54,54 L28,28 L38,18 L54,34 L70,18 L80,28 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="28" android:startY="18"
+                android:endX="80" android:endY="54"
+                android:type="linear">
+                <item android:offset="0" android:color="#4FC3F7"/>
+                <item android:offset="1" android:color="#0288D1"/>
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- 右上菱形（黄） -->
+    <path android:pathData="M54,54 L80,28 L90,38 L74,54 L90,70 L80,80 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="54" android:startY="28"
+                android:endX="90" android:endY="80"
+                android:type="linear">
+                <item android:offset="0" android:color="#FFD54F"/>
+                <item android:offset="1" android:color="#FF8F00"/>
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- 右下菱形（绿） -->
+    <path android:pathData="M54,54 L80,80 L70,90 L54,74 L38,90 L28,80 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="28" android:startY="54"
+                android:endX="80" android:endY="90"
+                android:type="linear">
+                <item android:offset="0" android:color="#81C784"/>
+                <item android:offset="1" android:color="#388E3C"/>
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- 左下菱形（红） -->
+    <path android:pathData="M54,54 L28,80 L18,70 L34,54 L18,38 L28,28 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="18" android:startY="28"
+                android:endX="54" android:endY="80"
+                android:type="linear">
+                <item android:offset="0" android:color="#E57373"/>
+                <item android:offset="1" android:color="#C62828"/>
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- 中心菱形（白灰渐变） -->
     <path
-        android:fillColor="#1E88E5"
-        android:pathData="M10,4 h28 a6,6 0 0 1 6,6 v28 a6,6 0 0 1 -6,6 h-28 a6,6 0 0 1 -6,-6 v-28 a6,6 0 0 1 6,-6 z" />
-    <!-- 眼睛 -->
+        android:pathData="M54,38 L70,54 L54,70 L38,54 Z"
+        android:strokeWidth="2"
+        android:strokeColor="#FFFFFF"
+        android:strokeAlpha="0.8">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="38" android:startY="38"
+                android:endX="70" android:endY="70"
+                android:type="linear">
+                <item android:offset="0" android:color="#FFFFFF"/>
+                <item android:offset="1" android:color="#E0E0E0"/>
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- 中心小菱形装饰点 -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M24,13 C15,13 8.5,19.2 6,24 c2.5,4.8 9,11 18,11 s15.5,-6.2 18,-11 c-2.5,-4.8 -9,-11 -18,-11 z" />
-    <!-- 瞳孔 -->
+        android:fillColor="#2A3F54"
+        android:pathData="M54,46 L62,54 L54,62 L46,54 Z"/>
+
+    <!-- 四个方向的小圆点 -->
+    <path android:fillColor="#4FC3F7"
+        android:pathData="M54,14 A3,3 0 1,1 54,20 A3,3 0 1,1 54,14 Z"/>
+    <path android:fillColor="#FFD54F"
+        android:pathData="M94,54 A3,3 0 1,1 88,54 A3,3 0 1,1 94,54 Z"/>
+    <path android:fillColor="#81C784"
+        android:pathData="M54,94 A3,3 0 1,1 54,88 A3,3 0 1,1 54,94 Z"/>
+    <path android:fillColor="#E57373"
+        android:pathData="M14,54 A3,3 0 1,1 20,54 A3,3 0 1,1 14,54 Z"/>
+
+    <!-- 对角细线装饰 -->
     <path
-        android:fillColor="#0D47A1"
-        android:pathData="M24,18 a6,6 0 1 0 0.001,0 z" />
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1"
+        android:strokeAlpha="0.3"
+        android:pathData="M24,24 L84,84"/>
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1"
+        android:strokeAlpha="0.3"
+        android:pathData="M84,24 L24,84"/>
+
 </vector>

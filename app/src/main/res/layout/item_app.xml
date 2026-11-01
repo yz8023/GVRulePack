@@ -70,6 +70,22 @@
                 android:textAppearance="?attr/textAppearanceBodySmall"
                 android:textColor="?android:attr/textColorSecondary"
                 tools:text="视图规则 4 · 弹窗规则 0" />
+
+            <TextView
+                android:id="@+id/itemBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:background="@drawable/bg_badge"
+                android:paddingStart="8dp"
+                android:paddingTop="2dp"
+                android:paddingEnd="8dp"
+                android:paddingBottom="2dp"
+                android:textAppearance="?attr/textAppearanceLabelSmall"
+                android:textColor="?android:attr/textColorSecondary"
+                android:visibility="gone"
+                tools:text="本机无此应用·不影响生成"
+                tools:visibility="visible" />
         </LinearLayout>
 
         <ImageButton
