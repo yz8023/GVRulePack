@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="gv_primary">#1E88E5</color>
+    <color name="gv_primary_dark">#0D47A1</color>
+    <color name="gv_on_primary">#FFFFFF</color>
+    <color name="gv_tile_start">#2979FF</color>
+    <color name="gv_tile_end">#0D47A1</color>
+    <color name="gv_danger">#E53935</color>
+    <color name="gv_danger_soft">#FFEBEE</color>
+</resources>

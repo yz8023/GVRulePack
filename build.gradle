@@ -1,0 +1,24 @@
+// GVRulePack — GodViewer 规则包导入模块（LSPosed / libxposed API 102）
+// 结构与上游 GodViewer（https://github.com/tobbytian/GodViewer, GPL-3.0）对齐：
+// compileSdk 35 / Kotlin 1.9.24 / JDK 17
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath "com.android.tools.build:gradle:8.5.2"
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.24"
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+tasks.register('clean', Delete) {
+    delete rootProject.layout.buildDirectory
+}

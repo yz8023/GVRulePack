@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">GV 规则包</string>
+    <string name="app_desc">导入 GodViewer 导出的规则 JSON，自动在目标应用里重放</string>
+    <string name="header_subtitle">GodViewer 规则 · 安装即自动重放</string>
+    <string name="steps_title">三步上手</string>
+    <string name="steps_body">1. 用 GodViewer 抓好规则并导出 JSON\n2. 点下方「导入规则 JSON」，再到 LSPosed 勾选推荐应用\n3. 强制停止目标应用后重新打开，规则自动生效</string>
+    <string name="btn_import">导入规则 JSON</string>
+    <string name="btn_scope">打开 LSPosed 作用域</string>
+    <string name="btn_delete">删除</string>
+    <string name="section_imported">已导入的应用</string>
+    <string name="empty_title">还没有导入规则</string>
+    <string name="empty_hint">点上方「导入规则 JSON」\n选择 GodViewer 导出的文件即可</string>
+</resources>

@@ -1,0 +1,128 @@
+{
+  "apps": [
+    {
+      "dialog_rules": [],
+      "label": "抖音",
+      "package": "com.ss.android.ugc.aweme",
+      "view_rules": [
+        {
+          "activity_class": "com.ss.android.ugc.aweme.live.LivePlayActivity",
+          "changed_hint": false,
+          "changed_image": false,
+          "changed_margin": false,
+          "changed_padding": false,
+          "changed_size": false,
+          "changed_text": false,
+          "changed_visibility": true,
+          "depth": [0, 1, 1, 2, 0, 1, 2, 1, 1, 28, 1, 0, 2, 0, 2, 0, 1],
+          "match_version_code": 410000,
+          "modified": {
+            "height": 378, "margin_bottom": 137, "margin_left": 24, "margin_right": 16,
+            "margin_top": 0, "max_lines": 2147483647, "padding_bottom": 0, "padding_left": 0,
+            "padding_right": 0, "padding_top": 0, "scale_type": "FIT_CENTER", "visibility": 8,
+            "width": -1
+          },
+          "original": {
+            "height": 378, "margin_bottom": 137, "margin_left": 24, "margin_right": 16,
+            "margin_top": 0, "max_lines": 2147483647, "padding_bottom": 0, "padding_left": 0,
+            "padding_right": 0, "padding_top": 0, "scale_type": "FIT_CENTER", "visibility": 0,
+            "width": -1
+          },
+          "package_name": "com.ss.android.ugc.aweme",
+          "res_name": "com.ss.android.ugc.aweme:id/x98",
+          "timestamp": 1793493156459,
+          "view_class": "com.bytedance.android.live.core.widget.HSImageView"
+        },
+        {
+          "activity_class": "com.ss.android.ugc.aweme.live.LivePlayActivity",
+          "changed_hint": false,
+          "changed_image": false,
+          "changed_margin": false,
+          "changed_padding": false,
+          "changed_size": false,
+          "changed_text": false,
+          "changed_visibility": true,
+          "depth": [0, 1, 1, 2, 0, 1, 2, 1, 1, 28, 1, 0, 5, 5, 6, 6, 1, 0],
+          "match_version_code": 410000,
+          "modified": {
+            "height": 63, "margin_bottom": 0, "margin_left": 16, "margin_right": 16,
+            "margin_top": 0, "max_lines": 2147483647, "padding_bottom": 0, "padding_left": 0,
+            "padding_right": 0, "padding_top": 0, "scale_type": "FIT_CENTER", "visibility": 8,
+            "width": 63
+          },
+          "original": {
+            "height": 63, "margin_bottom": 0, "margin_left": 16, "margin_right": 16,
+            "margin_top": 0, "max_lines": 2147483647, "padding_bottom": 0, "padding_left": 0,
+            "padding_right": 0, "padding_top": 0, "scale_type": "FIT_CENTER", "visibility": 0,
+            "width": 63
+          },
+          "package_name": "com.ss.android.ugc.aweme",
+          "res_name": "com.ss.android.ugc.aweme:id/ir4",
+          "timestamp": 1793493199992,
+          "view_class": "androidx.appcompat.widget.AppCompatImageView"
+        },
+        {
+          "activity_class": "com.ss.android.ugc.aweme.live.LivePlayActivity",
+          "changed_hint": false,
+          "changed_image": false,
+          "changed_margin": false,
+          "changed_padding": false,
+          "changed_size": false,
+          "changed_text": false,
+          "changed_visibility": true,
+          "depth": [0, 1, 1, 2, 0, 1, 2, 1, 1, 28, 1, 0, 5, 5, 6, 2],
+          "description": "关闭 按钮",
+          "match_version_code": 410000,
+          "modified": {
+            "height": 95, "margin_bottom": 0, "margin_left": 0, "margin_right": 26,
+            "margin_top": 21, "max_lines": 2147483647, "padding_bottom": 0, "padding_left": 0,
+            "padding_right": 0, "padding_top": 0, "scale_type": "FIT_CENTER", "visibility": 8,
+            "width": 95
+          },
+          "original": {
+            "height": 95, "margin_bottom": 0, "margin_left": 0, "margin_right": 26,
+            "margin_top": 21, "max_lines": 2147483647, "padding_bottom": 0, "padding_left": 0,
+            "padding_right": 0, "padding_top": 0, "scale_type": "FIT_CENTER", "visibility": 0,
+            "width": 95
+          },
+          "package_name": "com.ss.android.ugc.aweme",
+          "res_name": "com.ss.android.ugc.aweme:id/260",
+          "timestamp": 1793493204913,
+          "view_class": "androidx.appcompat.widget.AppCompatImageView"
+        },
+        {
+          "activity_class": "com.ss.android.ugc.aweme.live.LivePlayActivity",
+          "changed_hint": false,
+          "changed_image": false,
+          "changed_margin": false,
+          "changed_padding": false,
+          "changed_size": false,
+          "changed_text": false,
+          "changed_visibility": true,
+          "depth": [0, 1, 1, 2, 0, 1, 2, 0, 1, 28, 1, 0, 5, 5, 6, 2],
+          "description": "关闭 按钮",
+          "match_version_code": 410000,
+          "modified": {
+            "height": 95, "margin_bottom": 0, "margin_left": 0, "margin_right": 26,
+            "margin_top": 21, "max_lines": 2147483647, "padding_bottom": 0, "padding_left": 0,
+            "padding_right": 0, "padding_top": 0, "scale_type": "FIT_CENTER", "visibility": 8,
+            "width": 95
+          },
+          "original": {
+            "height": 95, "margin_bottom": 0, "margin_left": 0, "margin_right": 26,
+            "margin_top": 21, "max_lines": 2147483647, "padding_bottom": 0, "padding_left": 0,
+            "padding_right": 0, "padding_top": 0, "scale_type": "FIT_CENTER", "visibility": 0,
+            "width": 95
+          },
+          "package_name": "com.ss.android.ugc.aweme",
+          "res_name": "com.ss.android.ugc.aweme:id/260",
+          "timestamp": 1793493302400,
+          "view_class": "androidx.appcompat.widget.AppCompatImageView"
+        }
+      ]
+    }
+  ],
+  "exported_at": 1793493361490,
+  "format": "godviewer-rules-bundle",
+  "format_version": 1
+}

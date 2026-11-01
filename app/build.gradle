@@ -1,0 +1,145 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+// ---------------------------------------------------------------------------
+// 可配置打包（像 SimpleHook 导出插件那样：包名 / 应用名 / 版本 / 签名 / 内置规则 全部可配）
+//
+// 推荐入口：项目根目录 `python3 pack.py`（读取 rulepack.properties，一条命令出 APK）。
+// 也可以手动传 -P 参数：
+//   gradle assembleRelease \
+//     -PrulesBundle=/path/to/godviewer-rules-bundle.json \
+//     -PcfgApplicationId=com.example.mymodule \
+//     -PcfgAppLabel="我的规则包" \
+//     -PcfgVersionCode=2 -PcfgVersionName=1.1.0 \
+//     -PcfgKeystore=/path/to/release.jks \
+//     -PcfgKeystorePassword=xxx -PcfgKeyAlias=yyy -PcfgKeyPassword=zzz
+// ---------------------------------------------------------------------------
+def cfgApplicationId = (findProperty("cfgApplicationId") ?: "io.github.gvrulepack.app").toString()
+def cfgAppLabel = (findProperty("cfgAppLabel") ?: "GV 规则包").toString()
+def cfgVersionCode = (findProperty("cfgVersionCode") ?: "1").toString().toInteger()
+def cfgVersionName = (findProperty("cfgVersionName") ?: "1.0.0").toString()
+def cfgKeystore = findProperty("cfgKeystore")?.toString()
+def cfgKeystorePassword = findProperty("cfgKeystorePassword")?.toString()
+def cfgKeyAlias = findProperty("cfgKeyAlias")?.toString()
+def cfgKeyPassword = findProperty("cfgKeyPassword")?.toString()
+// 配置了完整签名材料才启用自定义签名，否则 release 沿用 debug 签名（可直接自测）
+def cfgHasSigning = cfgKeystore && cfgKeystorePassword && cfgKeyAlias
+// 低内存机器（如 2GB CI/沙箱）可用 -PcfgLiteBuild=true 跳过 R8/资源收缩
+def cfgLite = findProperty("cfgLiteBuild")?.toString() in ["true", "1", "yes"]
+
+android {
+    namespace 'io.github.gvrulepack.app'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId cfgApplicationId
+        minSdk 23
+        targetSdk 35
+        versionCode cfgVersionCode
+        versionName cfgVersionName
+        // 模块应用名：默认用资源，cfgAppLabel 传入时直接显示该字符串
+        if (findProperty("cfgAppLabel")) {
+            manifestPlaceholders["appLabel"] = cfgAppLabel
+        } else {
+            manifestPlaceholders["appLabel"] = "@string/app_name"
+        }
+    }
+
+    signingConfigs {
+        if (cfgHasSigning) {
+            cfgrelease {
+                storeFile rootProject.file(cfgKeystore)
+                storePassword cfgKeystorePassword
+                keyAlias cfgKeyAlias
+                keyPassword cfgKeyPassword ?: cfgKeystorePassword
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled !cfgLite
+            shrinkResources !cfgLite
+            debuggable false
+            if (cfgHasSigning) {
+                signingConfig signingConfigs.cfgrelease
+            } else {
+                // 未配置 keystore：用 debug 签名，保证同一台机器上多次打包签名一致（可覆盖安装）
+                signingConfig signingConfigs.debug
+            }
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            minifyEnabled false
+            shrinkResources false
+            debuggable true
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+
+    buildFeatures {
+        buildConfig true
+        viewBinding true
+    }
+
+    // META-INF/xposed 元数据必须完整进 APK（java_init.list / module.prop / scope.list）
+    packaging {
+        resources {
+            merges += 'META-INF/xposed/*'
+        }
+    }
+}
+
+dependencies {
+    // libxposed API 102：框架运行时提供，绝不打进 APK（compileOnly）
+    compileOnly "io.github.libxposed:api:102.0.0"
+    implementation "com.google.code.gson:gson:2.10.1"
+    implementation "androidx.appcompat:appcompat:1.6.1"
+    implementation "com.google.android.material:material:1.11.0"
+}
+
+// ---------------------------------------------------------------------------
+// 规则预置：把 GodViewer 导出的 rules bundle 嵌进 APK，
+// 同时自动生成 META-INF/xposed/scope.list（LSPosed「推荐应用/建议作用域」）。
+// ---------------------------------------------------------------------------
+def rulesBundleProp = findProperty("rulesBundle") ?: System.getenv("RULES_BUNDLE")
+if (rulesBundleProp) {
+    def srcFile = rootProject.file(rulesBundleProp.toString())
+    def scopeFile = file("src/main/resources/META-INF/xposed/scope.list")
+    def assetFile = file("src/main/assets/rulepack.json")
+
+    tasks.register("prepareRulePack") {
+        group = "rulepack"
+        description = "把 godviewer-rules-bundle JSON 预置进 APK 并生成推荐作用域"
+        inputs.file(srcFile)
+        outputs.files(scopeFile, assetFile)
+        doLast {
+            if (!srcFile.exists()) {
+                throw new GradleException("rules bundle 不存在: ${srcFile}")
+            }
+            def text = srcFile.getText("UTF-8")
+            def parsed = new groovy.json.JsonSlurper().parseText(text)
+            if (parsed.format != "godviewer-rules-bundle") {
+                throw new GradleException("不是 godviewer-rules-bundle 格式: format=${parsed.format}")
+            }
+            def apps = parsed.apps ?: []
+            def pkgs = apps.collect { it["package"] }.findAll { it }.unique()
+            scopeFile.parentFile.mkdirs()
+            scopeFile.setText(pkgs.join("\n") + (pkgs ? "\n" : ""), "UTF-8")
+            assetFile.parentFile.mkdirs()
+            assetFile.setText(text, "UTF-8")
+            println "[GVRulePack] 已预置 ${apps.size()} 个应用的规则，推荐作用域: ${pkgs}"
+            println "[GVRulePack] 包名=${cfgApplicationId} 应用名=${cfgAppLabel} 版本=${cfgVersionName}(${cfgVersionCode}) 签名=${cfgHasSigning ? '自定义' : 'debug'}"
+        }
+    }
+    tasks.named("preBuild").configure { dependsOn("prepareRulePack") }
+}

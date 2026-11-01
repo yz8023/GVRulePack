@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Material 3 日夜主题 -->
+    <style name="Theme.GVRulePack" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/gv_primary</item>
+        <item name="colorPrimaryDark">@color/gv_primary_dark</item>
+        <item name="colorOnPrimary">@color/gv_on_primary</item>
+        <item name="colorSecondary">@color/gv_primary</item>
+        <item name="colorError">@color/gv_danger</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+    </style>
+
+    <!-- 卡片应用图标的圆角 -->
+    <style name="Corner12">
+        <item name="cornerSize">12dp</item>
+    </style>
+</resources>

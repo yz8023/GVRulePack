@@ -1,0 +1,16 @@
+*.iml
+.gradle/
+.idea/
+build/
+local.properties
+captures/
+.DS_Store
+app/build/
+# 个人打包配置与产物
+rulepack.properties
+dist/
+*.jks
+*.keystore
+# 由 -PrulesBundle=... 预置生成，不要提交个人规则
+app/src/main/assets/rulepack.json
+debug-version.properties

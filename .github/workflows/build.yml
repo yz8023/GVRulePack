@@ -1,0 +1,37 @@
+name: build
+
+on:
+  push:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.7'
+
+      # 仓库里放了 rulepack.properties 就会自动生效（含签名材料时注意别提交密钥本体！）；
+      # 没有配置文件时打「通用版」（debug 签名）
+      - name: Build via pack.py
+        run: python3 pack.py
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: GVRulePack
+          path: dist/*.apk

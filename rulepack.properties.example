@@ -1,0 +1,35 @@
+# =============================================================================
+# GVRulePack 自定义打包配置（复制本文件为 rulepack.properties 后修改）
+#
+#   cp rulepack.properties.example rulepack.properties
+#   python3 pack.py
+#
+# 产物输出到 dist/<应用名>-<版本>.apk
+# 所有项都有默认值；只填需要改的。也可以用命令行参数覆盖，见 `python3 pack.py -h`
+# =============================================================================
+
+# ---- 规则 -------------------------------------------------------------------
+# GodViewer 导出的 godviewer-rules-bundle JSON 路径（相对项目根目录或绝对路径）
+# 留空 = 打「通用版」：装好后在 App 里手动导入 JSON
+rulesBundle=
+
+# ---- 模块身份 ---------------------------------------------------------------
+# 包名（applicationId）
+applicationId=io.github.gvrulepack.app
+# 模块显示名（桌面图标 / LSPosed 里显示的应用名）
+appLabel=GV 规则包
+# 版本
+versionCode=1
+versionName=1.0.0
+# 输出文件名（留空 = <appLabel>-<versionName>.apk）
+outputName=
+
+# ---- 签名 -------------------------------------------------------------------
+# 自定义签名密钥（.jks / .keystore）。留空 = 使用 debug 签名（自用够了；
+# 同一台机器上多次打包签名一致，可覆盖安装升级）
+#
+# 填 "auto" = 没有密钥就在 dist/ 自动生成一把并复用（适合快速分享）
+keystore=
+keystorePassword=
+keyAlias=
+keyPassword=
