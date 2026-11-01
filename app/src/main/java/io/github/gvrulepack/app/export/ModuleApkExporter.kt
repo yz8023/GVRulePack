@@ -96,6 +96,7 @@ object ModuleApkExporter {
             manifest.versionName = config.versionName
             manifest.versionCode = config.versionCode
             manifest.setApplicationLabel(config.label)
+            writeLegacyScope(manifest, scopePackages)
 
             val zipMap = module.zipEntryMap
 
@@ -169,6 +170,27 @@ object ModuleApkExporter {
             viewRuleCount = viewCount,
             dialogRuleCount = dialogCount,
         )
+    }
+
+    /**
+     * 推荐作用域写入 manifest 的 `xposedscope`（分号分隔）。
+     *
+     * LSPosed 对 legacy 模块的推荐应用列表只读 manifest meta-data（zip 内 scope.list 仅 modern 路径读取），
+     * 模板已预置占位元素；scope 为空时移除该元素，避免推荐区出现空条目。
+     */
+    private fun writeLegacyScope(
+        manifest: com.reandroid.arsc.chunk.xml.AndroidManifestBlock,
+        scopePackages: List<String>,
+    ) {
+        val it = manifest.getAndroidNameElements("meta-data", "xposedscope")
+        val scopeEl = if (it.hasNext()) it.next() else return
+        val scopeValue = scopePackages.joinToString(";")
+        if (scopeValue.isEmpty()) {
+            manifest.applicationElement?.removeElementsIf { el -> el === scopeEl }
+            return
+        }
+        val attr = scopeEl.getOrCreateAndroidAttribute("value", com.reandroid.app.AndroidManifest.ID_value)
+        attr.setValueAsString(scopeValue)
     }
 
     /** 产物必须满足 LSPosed legacy 识别条件：assets/xposed_init 入口 + manifest xposedminversion。 */

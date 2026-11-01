@@ -116,6 +116,12 @@ class ExporterJvmTest {
                     String(manifestBytes, Charsets.UTF_16LE).contains(key)
             assertTrue("manifest 缺 xposedminversion（LSPosed 不识别）", manifestHas("xposedminversion"))
             assertTrue("manifest 缺 xposeddescription", manifestHas("xposeddescription"))
+            // 推荐作用域：legacy 模块的 LSPosed 只读 manifest xposedscope（分号分隔），不读 zip scope.list
+            assertTrue("manifest 缺 xposedscope（LSPosed 推荐作用域）", manifestHas("xposedscope"))
+            assertTrue(
+                "xposedscope 应含选中包名（sample_rules 选中抖音）",
+                manifestHas("com.ss.android.ugc.aweme"),
+            )
 
             // 模块元数据随导出改写（LSPosed 列表里显示的模块名 = 填写的模块名）
             val prop = String(zip.getInputStream(zip.getEntry(RuleFormat.MODULE_PROP_PATH)).readAllBytes())
