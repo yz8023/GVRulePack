@@ -3,13 +3,12 @@ package io.github.gvrulepack.module
 import android.app.Activity
 import android.app.Dialog
 import android.content.Context
-import android.content.pm.ApplicationInfo
 import android.util.Log
 import android.view.View
 import android.view.ViewTreeObserver
 import android.widget.PopupWindow
+import de.robv.android.xposed.XposedBridge
 import io.github.gvrulepack.common.ParsedRemoteRules
-import io.github.libxposed.api.XposedInterface
 import java.util.WeakHashMap
 
 /**
@@ -21,16 +20,17 @@ import java.util.WeakHashMap
  * - hook `Dialog.show` / `PopupWindow.invokePopup`：dialog_rules 尽力重放
  *
  * 纯被动重放：不拦截触摸、不弹 UI、不发通知。
+ *
+ * 日志走 logcat（tag=GVRulePack）+ XposedBridge.log（LSPosed 日志）双写，
+ * 「模块装没装上 / 规则读没读到 / hook 成没成功」全部可诊断。
  */
 object ReplayEngine {
 
     private const val TAG = "GVRulePack"
 
+    /** 模块自身 APK 路径（initZygote 提供；读 assets/rulepack.json 用） */
     @Volatile
-    internal var module: XposedInterface? = null
-
-    @Volatile
-    internal var moduleAppInfo: ApplicationInfo? = null
+    internal var modulePath: String? = null
 
     private val layoutListeners = WeakHashMap<Activity, ViewTreeObserver.OnGlobalLayoutListener>()
     private var popupDecorFieldReady = false
@@ -48,40 +48,33 @@ object ReplayEngine {
     /** 安装全部 Hook（每个进程一次）。 */
     fun install(packageName: String) {
         if (installedForPackage == packageName) return
-        val base = module ?: run {
-            Log.e(TAG, "install skipped: framework not attached")
-            return
-        }
         installedForPackage = packageName
 
         val okResume = HookAdapter.hookAfter(
-            base,
             Activity::class.java.getDeclaredMethod("onPostResume"),
         ) { param ->
             val activity = param.thisObject as? Activity ?: return@hookAfter
             runCatching {
                 replayActivity(activity)
                 registerLayoutListener(activity)
-            }.onFailure { Log.e(TAG, "onPostResume replay failed", it) }
+            }.onFailure { logE("onPostResume replay failed", it) }
         }
 
         val okDestroy = HookAdapter.hookAfter(
-            base,
             Activity::class.java.getDeclaredMethod("onDestroy"),
         ) { param ->
             val activity = param.thisObject as? Activity ?: return@hookAfter
             runCatching {
                 unregisterLayoutListener(activity)
-            }.onFailure { Log.e(TAG, "onDestroy cleanup failed", it) }
+            }.onFailure { logE("onDestroy cleanup failed", it) }
         }
 
         val okDialog = HookAdapter.hookAfter(
-            base,
             Dialog::class.java.getDeclaredMethod("show"),
         ) { param ->
             val dialog = param.thisObject as? Dialog ?: return@hookAfter
             runCatching { replayDialogLike(dialog.window?.decorView) }
-                .onFailure { Log.e(TAG, "dialog replay failed", it) }
+                .onFailure { logE("dialog replay failed", it) }
         }
 
         var okPopup = false
@@ -91,14 +84,14 @@ object ReplayEngine {
                 android.view.WindowManager.LayoutParams::class.java,
             )
         }.getOrNull()?.let { method ->
-            okPopup = HookAdapter.hookAfter(base, method) { param ->
+            okPopup = HookAdapter.hookAfter(method) { param ->
                 val popup = param.thisObject as? PopupWindow ?: return@hookAfter
                 runCatching { replayDialogLike(popupDecorView(popup)) }
-                    .onFailure { Log.e(TAG, "popup replay failed", it) }
+                    .onFailure { logE("popup replay failed", it) }
             }
         }
 
-        Log.i(TAG, "installed pkg=$packageName hooks resume=$okResume destroy=$okDestroy dialog=$okDialog popup=$okPopup")
+        slog("installed pkg=$packageName hooks resume=$okResume destroy=$okDestroy dialog=$okDialog popup=$okPopup")
     }
 
     // ------------------------------------------------------------ 规则加载
@@ -107,13 +100,12 @@ object ReplayEngine {
         if (rulesLoaded) return rules
         synchronized(this) {
             if (rulesLoaded) return rules
-            val loaded = EmbeddedRules.load(context, moduleAppInfo)
+            val loaded = EmbeddedRules.load(context.packageName, modulePath)
             rules = loaded
             rulesLoaded = true
-            Log.i(
-                TAG,
+            slog(
                 "rules loaded pkg=${context.packageName} view=${loaded.viewRules.size} " +
-                    "dialog=${loaded.dialogRules.size}",
+                    "dialog=${loaded.dialogRules.size} modulePath=${modulePath != null}",
             )
             return rules
         }
@@ -130,7 +122,7 @@ object ReplayEngine {
             runCatching {
                 val view = findViewBestMatch(activity, rule) ?: return@runCatching
                 ViewRuleApplier.applyRuleToView(view, rule)
-            }.onFailure { Log.e(TAG, "apply rule failed key=${rule.dedupKey()}", it) }
+            }.onFailure { logE("apply rule failed key=${rule.dedupKey()}", it) }
         }
     }
 
@@ -140,11 +132,11 @@ object ReplayEngine {
         val vto = runCatching { decor.viewTreeObserver }.getOrNull() ?: return
         val listener = ViewTreeObserver.OnGlobalLayoutListener {
             runCatching { replayActivity(activity) }
-                .onFailure { Log.e(TAG, "layout replay failed", it) }
+                .onFailure { logE("layout replay failed", it) }
         }
         runCatching { vto.addOnGlobalLayoutListener(listener) }
             .onSuccess { layoutListeners[activity] = listener }
-            .onFailure { Log.e(TAG, "addOnGlobalLayoutListener failed", it) }
+            .onFailure { logE("addOnGlobalLayoutListener failed", it) }
     }
 
     private fun unregisterLayoutListener(activity: Activity) {
@@ -172,7 +164,7 @@ object ReplayEngine {
                 runCatching {
                     val view = findViewInRoot(decor, rule) ?: return@runCatching
                     ViewRuleApplier.applyRuleToView(view, rule)
-                }.onFailure { Log.e(TAG, "dialog rule failed key=${rule.dedupKey()}", it) }
+                }.onFailure { logE("dialog rule failed key=${rule.dedupKey()}", it) }
             }
         }
 
@@ -188,5 +180,17 @@ object ReplayEngine {
             popupDecorFieldReady = true
         }
         return runCatching { popupDecorField?.get(popup) as? View }.getOrNull()
+    }
+
+    // --------------------------------------------------------------- 日志双写
+
+    private fun slog(msg: String) {
+        Log.i(TAG, msg)
+        runCatching { XposedBridge.log("[GVRulePack] $msg") }
+    }
+
+    private fun logE(msg: String, tr: Throwable? = null) {
+        Log.e(TAG, msg, tr)
+        runCatching { XposedBridge.log("[GVRulePack] $msg" + (tr?.let { ": $it" } ?: "")) }
     }
 }

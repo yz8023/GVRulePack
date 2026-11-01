@@ -24,7 +24,6 @@ import io.github.gvrulepack.app.export.ModuleApkExporter
 import io.github.gvrulepack.common.BundleApp
 import io.github.gvrulepack.common.RuleFormat
 import java.io.File
-import java.security.MessageDigest
 import java.util.concurrent.Executors
 
 /**
@@ -120,6 +119,7 @@ class ExportActivity : AppCompatActivity() {
                 isChecked = preselect.isEmpty() || app.packageName in preselect
                 setPadding(0, dp(2), 0, dp(2))
             }
+            cb.setOnCheckedChangeListener { _, _ -> syncPackageIfNeeded() }
             checks[app.packageName] = cb
             root += cb
         }
@@ -252,25 +252,39 @@ class ExportActivity : AppCompatActivity() {
         return if (apps.size == 1) "${first}规则包" else "${first}等${apps.size}应用规则包"
     }
 
+    /** 自动包名：目标应用包名 + .mode（多选时取第一个勾选的应用） */
     private fun defaultPackageName(): String {
-        val selected = checkedPackages()
-        val seed = selected.joinToString(",").ifEmpty { System.currentTimeMillis().toString() }
-        val hash = MessageDigest.getInstance("SHA-256").digest(seed.toByteArray())
-            .joinToString("") { "%02x".format(it) }
-            .take(6)
-        return "io.github.gvrulepack.pack.$hash"
+        val first = checkedPackages().firstOrNull()
+        return if (first != null) "$first.mode" else "io.github.gvrulepack.pack"
+    }
+
+    /** 最近一次自动生成的包名：用于判断输入框是否仍是「自动值」（用户手改则不覆盖） */
+    private var lastAutoPkg: String? = null
+
+    /** 勾选变化时刷新自动包名；用户手动改过（≠自动值）则保持不动 */
+    private fun syncPackageIfNeeded() {
+        val auto = defaultPackageName()
+        val cur = etPackage.text.toString().trim()
+        if (cur.isEmpty() || cur == lastAutoPkg) {
+            lastAutoPkg = auto
+            etPackage.setText(auto)
+            etPackage.setSelection(auto.length)
+        }
     }
 
     private fun prefillPackage() {
-        etPackage.setText(defaultPackageName())
+        lastAutoPkg = null
+        syncPackageIfNeeded()
         etVersionName.setText("1.0.0")
         etVersionCode.setText("1")
     }
 
     private fun randomizePackage() {
         val random = (100000..999999).random()
-        val base = defaultPackageName().substringBeforeLast('.')
-        etPackage.setText("$base.$random")
+        val pkg = "${defaultPackageName()}.$random"
+        lastAutoPkg = pkg
+        etPackage.setText(pkg)
+        etPackage.setSelection(pkg.length)
     }
 
     private fun checkedPackages(): List<String> = checks.filter { it.value.isChecked }.keys.toList()

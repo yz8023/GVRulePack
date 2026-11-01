@@ -94,16 +94,24 @@ class ExporterJvmTest {
             val scope = String(zip.getInputStream(zip.getEntry(RuleFormat.SCOPE_LIST_PATH)).readAllBytes())
             assertTrue(scope.contains("com.ss.android.ugc.aweme"))
 
-            val embedded = String(zip.getInputStream(zip.getEntry(RuleFormat.EMBEDDED_RULEPACK_ASSET)).readAllBytes())
+            // 规则必须在 assets/ 前缀的真实路径下（裸文件名曾导致模块读不到规则）
+            val embedded = String(zip.getInputStream(zip.getEntry(RuleFormat.EMBEDDED_RULEPACK_ZIP_PATH)).readAllBytes())
             val reparsed = RuleBundleParser.parse(embedded)
             assertTrue(reparsed.ok)
             assertEquals(1, reparsed.apps.size)
             assertEquals(4, reparsed.apps[0].viewRules.size)
+            assertTrue("裸路径 rulepack.json 不应存在", zip.getEntry(RuleFormat.EMBEDDED_RULEPACK_ASSET) == null)
 
-            // xposed 入口元数据保持
-            assertTrue(zip.getEntry("META-INF/xposed/java_init.list") != null)
-            val init = String(zip.getInputStream(zip.getEntry("META-INF/xposed/java_init.list")).readAllBytes())
+            // 传统 Xposed 入口（所有框架都认 assets/xposed_init）
+            assertTrue(zip.getEntry(RuleFormat.XPOSED_INIT_ASSET) != null)
+            val init = String(zip.getInputStream(zip.getEntry(RuleFormat.XPOSED_INIT_ASSET)).readAllBytes())
             assertTrue(init.contains("io.github.gvrulepack.module.RulePackModule"))
+
+            // 模块元数据随导出改写（LSPosed 列表里显示的模块名 = 填写的模块名）
+            val prop = String(zip.getInputStream(zip.getEntry(RuleFormat.MODULE_PROP_PATH)).readAllBytes())
+            assertTrue(prop.contains("name=测试模块"))
+            assertTrue(prop.contains("version=2.3.4"))
+            assertTrue(prop.contains("versionCode=7"))
         }
     }
 }

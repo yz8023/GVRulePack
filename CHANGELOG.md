@@ -1,5 +1,13 @@
 # 更新日志
 
+## v1.2.3（2026-11-02）
+
+- **修复导出模块完全不生效**（两个根因）：① 导出器曾把规则写到 zip 根路径，而读取端按 `assets/rulepack.json` 查找——现在读写都用真实 zip 路径，并有防回归测试；② 模块改回**传统 Xposed API**（`assets/xposed_init` + api-82），LSPosed/EdXposed/太极全兼容（此前的 modern libxposed API 在旧框架上根本不加载），规则读取改为公开 API 的 ZipFile 直读（不再反射隐藏 API `AssetManager.addAssetPath`）。
+- **诊断日志**：模块加载、Hook 安装、规则读取全链路 logcat（tag=GVRulePack）+ XposedBridge 双写，LSPosed 日志可查。
+- **包名默认值**：默认「目标应用包名 + `.mode`」（多选取第一个勾选），切换勾选自动刷新、手动改过不覆盖；随机按钮基于此加随机段。
+- **模块名可更正**：导出时模块名同步写入 `module.prop` 的 `name=`——LSPosed 模块列表与桌面显示一致。
+- 模板预置空 `assets/rulepack.json`，模块元数据精简（去除 modern API 专有字段）。
+
 ## v1.2.2（2026-11-02）
 
 - **修复 v1.2.1 启动即崩**：`AbstractMethodError: AppCompatDelegateImpl.onCreateView`——R8（compat 模式、非优化 proguard 配置下）仍把 appcompat 的 Factory2 实现裁成 abstract。工厂 App 自此**关闭混淆与资源收缩**（换体积换稳定；导出的模块模板不受影响，仍保持混淆）。

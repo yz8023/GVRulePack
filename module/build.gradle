@@ -43,6 +43,7 @@ android {
 }
 
 dependencies {
-    compileOnly "io.github.libxposed:api:102.0.0"
+    // 传统 Xposed API（api-82）：LSPosed / EdXposed / 太极全兼容；运行时由框架提供实现
+    compileOnly files('libs/api-82.jar')
     implementation project(':common')
 }
