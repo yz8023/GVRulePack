@@ -58,8 +58,8 @@ def parse_args(props: dict[str, str]) -> argparse.Namespace:
     p.add_argument("--config", default=str(CONFIG_FILE), help="配置文件路径（默认 rulepack.properties）")
     p.add_argument("--package", default=props.get("applicationId", "io.github.gvrulepack.app"), help="工厂包名")
     p.add_argument("--name", default=props.get("appLabel", "GV 规则工坊"), help="工厂应用名")
-    p.add_argument("--version-code", default=props.get("versionCode", "9"), help="versionCode")
-    p.add_argument("--version-name", default=props.get("versionName", "1.2.6"), help="versionName")
+    p.add_argument("--version-code", default=props.get("versionCode", "10"), help="versionCode")
+    p.add_argument("--version-name", default=props.get("versionName", "1.2.7"), help="versionName")
     p.add_argument("--output-name", default=props.get("outputName", ""), help="输出 APK 文件名")
     p.add_argument("--keystore", default=props.get("keystore", ""),
                    help="工厂自身签名；'auto'=自动生成；留空=debug 签名")

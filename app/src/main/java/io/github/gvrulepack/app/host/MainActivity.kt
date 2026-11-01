@@ -102,7 +102,7 @@ class MainActivity : AppCompatActivity() {
 
         item.itemLabel.text = buildString {
             append(app.label ?: app.packageName)
-            if (!installed) append("（本机未安装）")
+            if (!installed) append("（本机无此应用·不影响生成）")
         }
         item.itemLabel.alpha = if (installed) 1f else 0.55f
 
@@ -152,6 +152,10 @@ class MainActivity : AppCompatActivity() {
                 }
                 append("\n下一步：点「生成模块 APK」，把生成的模块发给朋友，")
                 append("安装后在 LSPosed 勾选作用域即可生效。")
+                if (result.imported.any { !isInstalled(it.packageName) }) {
+                    append("\n注：本机没装某个应用没关系——规则来自 JSON，")
+                    append("模块 APK 装到装有该应用的手机上即可生效。")
+                }
             }
             if (result.errors.isNotEmpty()) {
                 if (result.imported.isNotEmpty()) append("\n\n")
