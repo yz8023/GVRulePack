@@ -17,31 +17,44 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      # runner 自带 Android SDK（ANDROID_HOME 已配置，cmdline-tools 路径随镜像变化）；
-      # 不再用 android-actions/setup-android——其内部 sdkmanager 调用已失效
       - name: Set up Android SDK
-        run: |
-          SDKM=$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -1)
-          if [ -n "$SDKM" ]; then
-            yes | "$SDKM" --licenses >/dev/null 2>&1 || true
-            "$SDKM" "platforms;android-35" "build-tools;34.0.0" || true
-          fi
-          # 硬性门禁：所需平台与构建工具必须就位
-          test -f "$ANDROID_HOME/platforms/android-35/android.jar"
-          test -f "$ANDROID_HOME/build-tools/34.0.0/aapt2" -o -f "$ANDROID_HOME/build-tools/34.0.0/apksigner"
+        uses: android-actions/setup-android@v3
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: '8.7'
 
+      # CI 内存/并发放开（仓库 gradle.properties 为低内存本地机调优：单 worker、无 daemon）
+      - name: Tune Gradle for CI
+        run: |
+          sed -i 's/-Xmx640m/-Xmx2048m/' gradle.properties
+          sed -i 's/org.gradle.workers.max=1/org.gradle.workers.max=4/' gradle.properties
+          sed -i 's/org.gradle.daemon=false/org.gradle.daemon=true/' gradle.properties
+          sed -i '/kotlin.compiler.execution.strategy=in-process/d' gradle.properties
+          sed -i 's/kotlin.daemon.jvmargs=-Xmx384m/kotlin.daemon.jvmargs=-Xmx1024m/' gradle.properties
+
       # 仓库里放了 rulepack.properties 就会自动生效（含签名材料时注意别提交密钥本体！）；
       # 没有配置文件时打「通用版」（debug 签名）
       - name: Build via pack.py
         run: python3 pack.py
 
-      - name: Upload APK
+      # lint 只出报告不阻断（存量告警先可见、后清理）
+      - name: Lint (report only)
+        run: gradle :app:lintRelease :module:lintRelease --console=plain || true
+
+      - name: Upload APK (+ sha256)
         uses: actions/upload-artifact@v4
         with:
           name: GVRulePack
-          path: dist/*.apk
+          path: |
+            dist/*.apk
+            dist/*.sha256
+
+      - name: Upload lint reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-reports
+          path: "**/build/reports/lint-results-*"
+          if-no-files-found: ignore

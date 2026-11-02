@@ -52,16 +52,18 @@ object ViewRuleApplier {
                 view.visibility = s.visibility
             }
             if (rule.changedText && view is TextView) {
-                if (view.text?.toString() != s.text) {
-                    view.text = s.text ?: ""
+                // 快照 text/hint 为 null 表示「没有值」，不动视图（旧逻辑会把文本清空）
+                val newText = s.text
+                if (newText != null && view.text?.toString() != newText) {
+                    view.text = newText
                 }
-                if (view.maxLines != s.maxLines) {
+                if (s.maxLines in 1..1000 && view.maxLines != s.maxLines) {
                     view.maxLines = s.maxLines
                 }
             }
             if (rule.changedHint && view is TextView) {
-                val hint = s.hint ?: ""
-                if (view.hint?.toString() != hint) {
+                val hint = s.hint
+                if (hint != null && view.hint?.toString() != hint) {
                     view.hint = hint
                 }
             }

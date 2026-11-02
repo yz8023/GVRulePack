@@ -6,18 +6,16 @@ import io.github.gvrulepack.common.RuleMerge
 import io.github.gvrulepack.common.StoredApp
 import io.github.gvrulepack.common.RuleBundleParser
 import java.io.File
-import java.util.concurrent.Executors
 
 /**
  * 宿主侧规则存储：每个应用一个 JSON 文件（files/rulepack/<pkg>.json）。
  *
- * 写入为原子写 + 单线程串行；读取同步。注入进程经 [RulesProvider] 读取。
+ * 写入为原子写；读写由调用方的单线程 executor 串行化（见 MainActivity.ioExecutor）。
  */
 class RulePackStore(context: Context) {
 
     private val appContext = context.applicationContext
     private val gson = Gson()
-    private val executor = Executors.newSingleThreadExecutor()
 
     private val rootDir: File
         get() = File(appContext.filesDir, "rulepack")
@@ -92,12 +90,7 @@ class RulePackStore(context: Context) {
         val file = fileFor(packageName)
         return if (file.exists()) file.delete() else false
     }
-
-    /** 清空全部。 */
-    fun clearAll() {
-        rootDir.deleteRecursively()
-    }
-
+    
     private fun saveSync(app: StoredApp) {
         val dir = rootDir
         if (!dir.exists()) dir.mkdirs()
@@ -109,12 +102,7 @@ class RulePackStore(context: Context) {
             tmp.delete()
         }
     }
-
-    /** 异步保存（Provider 读多写少，这里只给宿主 UI 用） */
-    fun saveAsync(app: StoredApp) {
-        executor.execute { runCatching { saveSync(app) } }
-    }
-
+    
     private fun fileFor(packageName: String): File {
         val safe = packageName.replace(Regex("[^A-Za-z0-9._]"), "_")
         return File(rootDir, "$safe.json")

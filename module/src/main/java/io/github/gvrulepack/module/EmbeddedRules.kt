@@ -55,11 +55,4 @@ object EmbeddedRules {
         )
         return ParsedRemoteRules(app.viewRules, app.dialogRules)
     }
-
-    /** 仅测试用：直接解析 bundle 文本（不走 ZipFile）。 */
-    fun parseForPackage(json: String, packageName: String): ParsedRemoteRules {
-        val app = RuleBundleParser.parse(json).apps.firstOrNull { it.packageName == packageName }
-            ?: return ParsedRemoteRules.EMPTY
-        return ParsedRemoteRules(app.viewRules, app.dialogRules)
-    }
 }

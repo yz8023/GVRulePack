@@ -2,6 +2,7 @@ package io.github.gvrulepack.app.host
 
 import android.content.ClipboardManager
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.widget.Toast
@@ -23,17 +24,26 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var store: RulePackStore
 
+    /** 规则读写统一走单线程：导入/列表刷新/导出入口共用，读写天然串行（防竞态+防 ANR） */
+    private val ioExecutor = java.util.concurrent.Executors.newSingleThreadExecutor()
+
+    private fun isDead(): Boolean = isFinishing || isDestroyed
+
     private val importLauncher =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             uri ?: return@registerForActivityResult
-            val text = runCatching {
-                contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) }
-            }.getOrNull()
-            if (text.isNullOrBlank()) {
-                toast("读取文件失败")
-                return@registerForActivityResult
+            val text = runCatching { readTextLimited(uri) }.getOrNull()
+            when {
+                text == null -> {
+                    toast("读取失败或文件过大（上限 ${MAX_IMPORT_BYTES / 1024 / 1024}MB）")
+                    return@registerForActivityResult
+                }
+                text.isBlank() -> {
+                    toast("读取文件失败")
+                    return@registerForActivityResult
+                }
+                else -> handleImport(text)
             }
-            handleImport(text)
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -46,11 +56,17 @@ class MainActivity : AppCompatActivity() {
             importLauncher.launch(arrayOf("application/json", "text/*", "application/octet-stream", "*/*"))
         }
         binding.btnExport.setOnClickListener {
-            if (store.listApps().isEmpty()) {
-                toast("先导入规则再生成模块")
-                return@setOnClickListener
+            ioExecutor.execute {
+                val empty = store.listApps().isEmpty()
+                runOnUiThread {
+                    if (isDead()) return@runOnUiThread
+                    if (empty) {
+                        toast("先导入规则再生成模块")
+                    } else {
+                        startActivity(Intent(this, ExportActivity::class.java))
+                    }
+                }
             }
-            startActivity(Intent(this, ExportActivity::class.java))
         }
         binding.btnClipboard.setOnClickListener { importFromClipboard() }
     }
@@ -77,13 +93,44 @@ class MainActivity : AppCompatActivity() {
             toast("剪贴板内容不是 JSON，需要 GodViewer 导出的规则文本")
             return
         }
+        if (text.length > MAX_IMPORT_CHARS) {
+            toast("剪贴板 JSON 过大（上限 ${MAX_IMPORT_CHARS / 1024 / 1024}MB），拒绝导入")
+            return
+        }
         handleImport(text)
+    }
+
+    /** 限流读取文本（上限 [MAX_IMPORT_BYTES]）；超限返回 null。 */
+    private fun readTextLimited(uri: Uri): String? {
+        contentResolver.openInputStream(uri)?.use { input ->
+            val bos = java.io.ByteArrayOutputStream()
+            val buf = ByteArray(8192)
+            var total = 0
+            while (true) {
+                val n = input.read(buf)
+                if (n < 0) break
+                total += n
+                if (total > MAX_IMPORT_BYTES) return null
+                bos.write(buf, 0, n)
+            }
+            return bos.toString("UTF-8")
+        }
+        return null
     }
 
     // ------------------------------------------------------------- 列表
 
     private fun refreshList() {
-        val apps = store.listApps()
+        ioExecutor.execute {
+            val apps = store.listApps()
+            runOnUiThread {
+                if (isDead()) return@runOnUiThread
+                renderList(apps)
+            }
+        }
+    }
+
+    private fun renderList(apps: List<StoredApp>) {
         binding.emptyState.visibility = if (apps.isEmpty()) android.view.View.VISIBLE else android.view.View.GONE
         binding.sectionCount.text = if (apps.isEmpty()) "" else "${apps.size} 个"
         binding.btnExport.alpha = if (apps.isEmpty()) 0.5f else 1f
@@ -139,7 +186,20 @@ class MainActivity : AppCompatActivity() {
     // ------------------------------------------------------------- 行为
 
     private fun handleImport(json: String) {
-        val result = store.importBundle(json)
+        if (json.length > MAX_IMPORT_CHARS) {
+            toast("JSON 过大（上限 ${MAX_IMPORT_CHARS / 1024 / 1024}MB），拒绝导入")
+            return
+        }
+        ioExecutor.execute {
+            val result = store.importBundle(json)
+            runOnUiThread {
+                if (isDead()) return@runOnUiThread
+                renderAppImportResult(result)
+            }
+        }
+    }
+
+    private fun renderAppImportResult(result: RulePackStore.ImportResult) {
         refreshList()
         val msg = buildString {
             if (result.imported.isNotEmpty()) {
@@ -188,5 +248,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun toast(msg: String) {
         Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+    }
+
+    companion object {
+        private const val MAX_IMPORT_BYTES = 32 * 1024 * 1024
+        private const val MAX_IMPORT_CHARS = 16 * 1024 * 1024
     }
 }

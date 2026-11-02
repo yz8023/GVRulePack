@@ -20,6 +20,14 @@
 - 生成的模块 **零配置使用**：内置规则 + 推荐作用域（`META-INF/xposed/scope.list`，安装后 LSPosed 自动提示勾选），安装、勾选、强停目标应用即生效。
 - 与 [SimpleHook](https://github.com/littleWhiteDuck/SimpleHook) 导出插件 APK 的思路一致（ARSCLib 改包 + apksig 重签名）。
 
+## 签名与安全须知
+
+- **内置默认签名是公开签名**：`default_sign.jks`（密码 `gvrulepack`）随仓库/App 分发，
+  任何拿到模块 APK 的人都可以下载本仓库、改掉规则后用同一密钥重签。
+  **普通分发无所谓；若在意规则不被他人篡改，请在导出时开启「使用自定义签名密钥」**（每次导出结果页也会提示）。
+- 模块按规则中的 `image_url` 下载图片时有 10MB/2048px 上限，且拒绝内网与回环地址（防 SSRF/OOM 炸弹）。
+- 工坊 App 已关闭 `allowBackup`；导出分享的 FileProvider 只读。
+
 ## 快速使用
 
 1. 从 [Releases](../../releases) 下载工厂 APK，安装到手机。

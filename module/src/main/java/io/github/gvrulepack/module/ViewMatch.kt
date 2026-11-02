@@ -73,14 +73,27 @@ private fun getActivityFromViewContext(context: Context): Activity? {
     return null
 }
 
-/** 目标应用当前版本号 */
+/** 目标应用当前版本号（进程内缓存：匹配是每条规则×每次布局回调都来的热路径，不能每次都 binder） */
+@Volatile
+private var cachedVersionCode = -1
+
+@Volatile
+private var cachedVersionPkg: String? = null
+
 fun versionCode(context: Context): Int {
-    return try {
+    val pkg = context.packageName
+    if (cachedVersionCode >= 0 && cachedVersionPkg == pkg) return cachedVersionCode
+    val v = try {
         @Suppress("DEPRECATION")
-        context.packageManager.getPackageInfo(context.packageName, 0).versionCode
+        context.packageManager.getPackageInfo(pkg, 0).versionCode
     } catch (e: PackageManager.NameNotFoundException) {
         0
     }
+    if (v > 0) {
+        cachedVersionPkg = pkg
+        cachedVersionCode = v
+    }
+    return v
 }
 
 /** 视图资源名（如 "com.example:id/title"），无资源 id 时为 null */

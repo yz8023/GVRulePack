@@ -14,6 +14,12 @@ object RuleBundleParser {
 
     private val gson = Gson()
 
+    /**
+     * 包名白名单：与导出器一致。包名会进 manifest `xposedscope`（分号分隔）、
+     * scope.list（换行分隔）与存储文件名——放行非法字符等于放行注入与文件碰撞。
+     */
+    private val PACKAGE_NAME = Regex("[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z][a-zA-Z0-9_]*)+")
+
     data class ParsedAppEntry(
         val packageName: String,
         val label: String?,
@@ -63,11 +69,22 @@ object RuleBundleParser {
                     errors += "第 ${index + 1} 个应用缺少 package，已跳过"
                     continue
                 }
+                if (!PACKAGE_NAME.matches(pkg)) {
+                    errors += "第 ${index + 1} 个应用包名不合法：$pkg，已跳过"
+                    continue
+                }
+                val viewRules = parseRules(obj.get("view_rules"), "$pkg/view", errors)
+                val dialogRules = parseRules(obj.get("dialog_rules"), "$pkg/dialog", errors)
+                if (viewRules.isEmpty() && dialogRules.isEmpty()) {
+                    // 规则全部损坏被拒时不得把空壳 app 收进来（否则导出的是空规则模块还提示成功）
+                    errors += "第 ${index + 1} 个应用（$pkg）没有任何有效规则，已跳过"
+                    continue
+                }
                 apps += ParsedAppEntry(
                     packageName = pkg,
                     label = obj.str("label"),
-                    viewRules = parseRules(obj.get("view_rules"), "$pkg/view", errors),
-                    dialogRules = parseRules(obj.get("dialog_rules"), "$pkg/dialog", errors),
+                    viewRules = viewRules,
+                    dialogRules = dialogRules,
                 )
             } catch (t: Throwable) {
                 errors += "第 ${index + 1} 个应用解析失败：${t.message}"
@@ -88,6 +105,17 @@ object RuleBundleParser {
         val out = ArrayList<ViewRule>()
         for ((i, ruleEl) in el.asJsonArray.withIndex()) {
             runCatching {
+                // Gson 对无默认值的 Kotlin 字段走 Unsafe 分配：JSON 缺 depth/modified 时
+                // 字段为 null（Kotlin 非空类型上表现为诡异 NPE）。缺失在此显式拒绝。
+                val obj = ruleEl.asJsonObject
+                if (!obj.has("depth") || !obj.get("depth").isJsonArray || obj.getAsJsonArray("depth").size() == 0) {
+                    errors += "$where 第 $i 条规则缺少 depth 路径，已跳过"
+                    return@runCatching
+                }
+                if (!obj.has("modified") || !obj.get("modified").isJsonObject) {
+                    errors += "$where 第 $i 条规则缺少 modified 快照，已跳过"
+                    return@runCatching
+                }
                 val rule = gson.fromJson(ruleEl, ViewRule::class.java)
                 if (rule != null && rule.activityClass.isNotBlank() && rule.viewClass.isNotBlank()) {
                     out += rule

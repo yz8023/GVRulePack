@@ -36,8 +36,9 @@ object ReplayEngine {
     private var popupDecorFieldReady = false
     private var popupDecorField: java.lang.reflect.Field? = null
 
+    /** hook 是进程级的：装过一次就不再装（与加载规则的包名解耦，防同进程多包重复 hook） */
     @Volatile
-    private var installedForPackage: String? = null
+    private var hooksInstalled = false
 
     @Volatile
     private var rules: ParsedRemoteRules = ParsedRemoteRules.EMPTY
@@ -45,10 +46,22 @@ object ReplayEngine {
     @Volatile
     private var rulesLoaded = false
 
+    /** 当前缓存规则对应的包名（同进程加载第二个包时必须重载，否则规则打错包） */
+    @Volatile
+    private var rulesPkg: String? = null
+
+    /** 布局回调合并窗口（ms）：GlobalLayout 风暴时只在尾部执行一次重放 */
+    private const val LAYOUT_THROTTLE_MS = 16L
+
+    private val pendingReplays = WeakHashMap<Activity, Runnable>()
+
     /** 安装全部 Hook（每个进程一次）。 */
     fun install(packageName: String) {
-        if (installedForPackage == packageName) return
-        installedForPackage = packageName
+        if (hooksInstalled) {
+            slog("install skipped (hooks already installed), pkg=$packageName")
+            return
+        }
+        hooksInstalled = true
 
         val okResume = HookAdapter.hookAfter(
             Activity::class.java.getDeclaredMethod("onPostResume"),
@@ -97,14 +110,16 @@ object ReplayEngine {
     // ------------------------------------------------------------ 规则加载
 
     private fun ensureRules(context: Context): ParsedRemoteRules {
-        if (rulesLoaded) return rules
+        val pkg = context.packageName
+        if (rulesLoaded && rulesPkg == pkg) return rules
         synchronized(this) {
-            if (rulesLoaded) return rules
-            val loaded = EmbeddedRules.load(context.packageName, modulePath)
+            if (rulesLoaded && rulesPkg == pkg) return rules
+            val loaded = EmbeddedRules.load(pkg, modulePath)
             rules = loaded
+            rulesPkg = pkg
             rulesLoaded = true
             slog(
-                "rules loaded pkg=${context.packageName} view=${loaded.viewRules.size} " +
+                "rules loaded pkg=$pkg view=${loaded.viewRules.size} " +
                     "dialog=${loaded.dialogRules.size} modulePath=${modulePath != null}",
             )
             return rules
@@ -131,8 +146,19 @@ object ReplayEngine {
         val decor = runCatching { activity.window?.decorView }.getOrNull() ?: return
         val vto = runCatching { decor.viewTreeObserver }.getOrNull() ?: return
         val listener = ViewTreeObserver.OnGlobalLayoutListener {
-            runCatching { replayActivity(activity) }
-                .onFailure { logE("layout replay failed", it) }
+            // 风暴节流：布局高频触发时合并为尾部一次重放（保底仍执行，不丢最终状态）
+            runCatching {
+                val decor = activity.window?.decorView ?: return@runCatching
+                val runnable = pendingReplays.getOrPut(activity) {
+                    Runnable {
+                        pendingReplays.remove(activity)
+                        runCatching { replayActivity(activity) }
+                            .onFailure { logE("layout replay failed", it) }
+                    }
+                }
+                decor.removeCallbacks(runnable)
+                decor.postDelayed(runnable, LAYOUT_THROTTLE_MS)
+            }.onFailure { logE("layout replay failed", it) }
         }
         runCatching { vto.addOnGlobalLayoutListener(listener) }
             .onSuccess { layoutListeners[activity] = listener }
@@ -142,7 +168,9 @@ object ReplayEngine {
     private fun unregisterLayoutListener(activity: Activity) {
         layoutListeners.remove(activity)?.let { listener ->
             runCatching {
-                activity.window?.decorView?.viewTreeObserver?.removeOnGlobalLayoutListener(listener)
+                val decor = activity.window?.decorView
+                decor?.viewTreeObserver?.removeOnGlobalLayoutListener(listener)
+                pendingReplays.remove(activity)?.let { decor?.removeCallbacks(it) }
             }
         }
     }
@@ -174,9 +202,13 @@ object ReplayEngine {
 
     private fun popupDecorView(popup: PopupWindow): View? {
         if (!popupDecorFieldReady) {
-            popupDecorField = runCatching {
+            val field = runCatching {
                 PopupWindow::class.java.getDeclaredField("mDecorView").apply { isAccessible = true }
             }.getOrNull()
+            if (field == null) {
+                logE("PopupWindow.mDecorView reflection failed; popup rules will not replay on this API")
+            }
+            popupDecorField = field
             popupDecorFieldReady = true
         }
         return runCatching { popupDecorField?.get(popup) as? View }.getOrNull()

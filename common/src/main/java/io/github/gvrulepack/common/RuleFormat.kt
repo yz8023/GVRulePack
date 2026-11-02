@@ -23,7 +23,11 @@ object RuleFormat {
     /** LSPosed 模块元数据（name= 行导出时改写为模块名） */
     const val MODULE_PROP_PATH = "META-INF/xposed/module.prop"
 
-    /** LSPosed 推荐作用域列表在 APK 内的路径 */
+    /**
+     * LSPosed 推荐作用域列表在 APK 内的路径（**modern API 模块**才读取）。
+     * 本仓库模块走 legacy 路线，legacy 的推荐作用域读 manifest `xposedscope`——
+     * 此条目为未来 modern 迁移与第三方工具兼容保留，导出时与 xposedscope 写同一份数据。
+     */
     const val SCOPE_LIST_PATH = "META-INF/xposed/scope.list"
 
     /** 模板 APK 在工厂 assets 里的文件名 */

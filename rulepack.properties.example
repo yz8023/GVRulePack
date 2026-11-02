@@ -13,8 +13,6 @@ applicationId=io.github.gvrulepack.app
 # 工厂显示名
 appLabel=GV 规则工坊
 # 版本
-versionCode=11
-versionName=1.2.8
 # 输出文件名（留空 = <应用名>-<版本>.apk）
 outputName=
 

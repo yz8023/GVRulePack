@@ -11,6 +11,7 @@ import android.view.View
 import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
@@ -19,6 +20,8 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.progressindicator.CircularProgressIndicator
 import com.google.android.material.switchmaterial.SwitchMaterial
 import io.github.gvrulepack.app.export.ModuleApkExporter
 import io.github.gvrulepack.common.BundleApp
@@ -93,16 +96,23 @@ class ExportActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         store = RulePackStore(this)
         val preselect = intent.getStringArrayListExtra(EXTRA_PRESELECT) ?: emptyList()
-        setContentView(buildContent(preselect))
-        prefillPackage()
+        setContentView(ProgressBar(this))
+        // 规则文件读取是磁盘 IO：移出主线程（列表大时 buildContent 同步读会 ANR）
+        executor.execute {
+            val apps = store.listApps()
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                setContentView(buildContent(apps, preselect))
+                prefillPackage()
+            }
+        }
     }
 
     // ---------------------------------------------------------------- UI
 
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density + 0.5f).toInt()
 
-    private fun buildContent(preselect: List<String>): View {
-        val apps = store.listApps()
+    private fun buildContent(apps: List<io.github.gvrulepack.common.StoredApp>, preselect: List<String>): View {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(24), dp(20), dp(32))
@@ -162,7 +172,7 @@ class ExportActivity : AppCompatActivity() {
         // 签名
         root += title("签名", 15f, top = 16)
         switchCustomSign = SwitchMaterial(this).apply {
-            text = "使用自定义签名密钥（默认用内置公开签名）"
+            text = "使用自定义签名密钥（推荐）——内置签名为公开签名，任何人可改规则重签"
             setOnCheckedChangeListener { _, on -> customSignBlock.visibility = if (on) View.VISIBLE else View.GONE }
         }
         root += switchCustomSign
@@ -307,8 +317,20 @@ class ExportActivity : AppCompatActivity() {
             toast("包名格式不合法")
             return
         }
-        val vName = etVersionName.text.toString().trim().ifEmpty { "1.0.0" }
-        val vCode = etVersionCode.text.toString().trim().toIntOrNull() ?: 1
+        // 版本名会拼进导出文件名：白名单校验（防 `a/../b` 路径穿越，导出器还有一道 require 兜底）
+        val vNameRaw = etVersionName.text.toString().trim()
+        if (vNameRaw.isNotEmpty() && !vNameRaw.matches(Regex("[\\p{L}\\p{N}._-]+"))) {
+            toast("版本名含非法字符（只允许字母/数字/点/下划线/中划线）")
+            return
+        }
+        val vName = vNameRaw.ifEmpty { "1.0.0" }
+        val vCodeStr = etVersionCode.text.toString().trim()
+        val vCodeParsed = vCodeStr.toIntOrNull()
+        if (vCodeStr.isNotEmpty() && (vCodeParsed == null || vCodeParsed !in 1..2_100_000_000)) {
+            toast("版本号需为 1 ~ 2100000000 的整数")
+            return
+        }
+        val vCode = vCodeParsed ?: 1
 
         val customSign = switchCustomSign.isChecked
         if (customSign && customKeystoreFile == null) {
@@ -316,11 +338,28 @@ class ExportActivity : AppCompatActivity() {
             return
         }
 
-        val dialog = ProgressDialog(this).apply {
-            setMessage("正在生成模块 APK…")
-            setCancelable(false)
-            show()
+        // UI 字段必须在主线程读取（曾直接在 executor 线程读 EditText——数据竞争）
+        val keystorePwd = etKeystorePassword.text.toString()
+        val keyAlias = etKeyAlias.text.toString().trim().ifEmpty { RuleFormat.DEFAULT_KEY_ALIAS }
+        val keyPwd = etKeyPassword.text.toString().ifEmpty { keystorePwd }
+
+        // F16: ProgressDialog 已废弃 → M3 对话框 + 环形进度
+        val progressInner = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(dp(24), dp(20), dp(24), dp(8))
+            addView(CircularProgressIndicator(this@ExportActivity).apply { isIndeterminate = true })
+            addView(TextView(this@ExportActivity).apply {
+                text = "正在生成模块 APK…"
+                setPadding(0, dp(14), 0, 0)
+            })
         }
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle("生成中")
+            .setView(progressInner)
+            .setCancelable(false)
+            .create()
+        dialog.show()
         btnGenerate.isEnabled = false
 
         executor.execute {
@@ -341,13 +380,10 @@ class ExportActivity : AppCompatActivity() {
                 val template = copyAssetTo(RuleFormat.TEMPLATE_APK_ASSET, File(exportDir, "template.apk"))
 
                 val sign = if (customSign) {
-                    val keystorePwd = etKeystorePassword.text.toString()
-                    val alias = etKeyAlias.text.toString().trim().ifEmpty { RuleFormat.DEFAULT_KEY_ALIAS }
-                    val keyPwd = etKeyPassword.text.toString().ifEmpty { keystorePwd }
                     ModuleApkExporter.loadKeystore(
                         customKeystoreFile!!,
                         keystorePwd.toCharArray(),
-                        alias,
+                        keyAlias,
                         keyPwd.toCharArray(),
                     )
                 } else {
@@ -382,7 +418,9 @@ class ExportActivity : AppCompatActivity() {
                         append("包含 ${r.scopePackages.size} 个应用 · 视图规则 ${r.viewRuleCount} 条 · 弹窗规则 ${r.dialogRuleCount} 条\n")
                         append("推荐作用域：${r.scopePackages.joinToString("、")}\n")
                         append("SHA256：${sha.take(16)}…\n\n")
-                        append("发给朋友安装 → LSPosed 勾选推荐应用 → 强停目标应用后打开即生效")
+                        append("发给朋友安装 → LSPosed 勾选推荐应用 → 强停目标应用后打开即生效\n\n")
+                        append("⚠ 内置签名为公开签名：任何拿到本 APK 的人都可改规则重签。\n")
+                        append("  分发给他人前若在意规则不被篡改，请用自定义签名重新生成。")
                     }
                     resultCard.visibility = View.VISIBLE
                 }, { e ->

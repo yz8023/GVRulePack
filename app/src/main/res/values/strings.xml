@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">GV 规则工坊</string>
-    <string name="app_desc">导入 GodViewer 规则 JSON，一键生成独立的 LSPosed 规则模块 APK</string>
     <string name="header_subtitle">GodViewer 规则 · 一键打包成独立模块</string>
     <string name="steps_title">三步上手</string>
     <string name="steps_body">1. 用 GodViewer 抓好规则并导出 JSON（文件或复制文本均可）\n2. 导入本工坊（文件 / 剪贴板），点「生成模块 APK」\n3. 把生成的 APK 发给朋友安装 → LSPosed 勾选推荐应用 → 生效</string>

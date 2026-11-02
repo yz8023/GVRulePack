@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -53,13 +54,26 @@ def load_properties(path: Path) -> dict[str, str]:
     return props
 
 
+def check_changelog(version_name: str) -> None:
+    """CHANGELOG 顶部版本必须与构建版本一致（单一来源防漂移）。"""
+    changelog = ROOT / "CHANGELOG.md"
+    if not changelog.exists():
+        return
+    m = re.search(r"^## v(\d+(?:\.\d+)*)", changelog.read_text(encoding="utf-8"), re.M)
+    if not m:
+        print("[pack] 警告: CHANGELOG 顶部没有 ## vX.Y.Z 条目")
+        return
+    if m.group(1) != version_name:
+        sys.exit(f"[pack] 错误: CHANGELOG 顶部版本 v{m.group(1)} 与构建版本 {version_name} 不一致，先对账再打包")
+
+
 def parse_args(props: dict[str, str]) -> argparse.Namespace:
     p = argparse.ArgumentParser(description="GV 规则工坊 一键打包")
     p.add_argument("--config", default=str(CONFIG_FILE), help="配置文件路径（默认 rulepack.properties）")
     p.add_argument("--package", default=props.get("applicationId", "io.github.gvrulepack.app"), help="工厂包名")
     p.add_argument("--name", default=props.get("appLabel", "GV 规则工坊"), help="工厂应用名")
-    p.add_argument("--version-code", default=props.get("versionCode", "11"), help="versionCode")
-    p.add_argument("--version-name", default=props.get("versionName", "1.2.8"), help="versionName")
+    p.add_argument("--version-code", default=props.get("versionCode"), help="versionCode（默认 version.properties）")
+    p.add_argument("--version-name", default=props.get("versionName"), help="versionName（默认 version.properties）")
     p.add_argument("--output-name", default=props.get("outputName", ""), help="输出 APK 文件名")
     p.add_argument("--keystore", default=props.get("keystore", ""),
                    help="工厂自身签名；'auto'=自动生成；留空=debug 签名")
@@ -163,8 +177,12 @@ def main() -> None:
     pre = argparse.ArgumentParser(add_help=False)
     pre.add_argument("--config", default=str(CONFIG_FILE))
     pre_args, _ = pre.parse_known_args()
-    props = load_properties(Path(pre_args.config))
+    # 版本单一来源链：CLI > rulepack.properties > version.properties
+    props = {**load_properties(ROOT / "version.properties"), **load_properties(Path(pre_args.config))}
     args = parse_args(props)
+    if not args.version_code or not args.version_name:
+        sys.exit("[pack] 错误: 缺少版本号（version.properties 或 rulepack.properties 需提供）")
+    check_changelog(args.version_name)
 
     print(f"[pack] 工厂: 包名={args.package} 名称={args.name} 版本={args.version_name}({args.version_code})")
 
@@ -244,11 +262,13 @@ def main() -> None:
     safe_name = safe_name.replace("/", "_").replace("\\", "_").replace(":", "_")
     out = DIST_DIR / safe_name
     shutil.copy2(FACTORY_APK, out)
+    digest = sha256_of(out)
+    Path(str(out) + ".sha256").write_text(f"{digest}  {out.name}\n", encoding="utf-8")
 
     print("")
     print("[pack] ✔ 打包完成")
     print(f"[pack]   工厂 APK : {out} ({out.stat().st_size / 1024:.0f} KB)")
-    print(f"[pack]   SHA256   : {sha256_of(out)}")
+    print(f"[pack]   SHA256   : {digest}")
     print(f"[pack]   内置模板 : {TEMPLATE_ASSET} ({TEMPLATE_ASSET.stat().st_size / 1024:.0f} KB)")
     print("[pack]   安装工厂 App → 导入 GodViewer JSON → 「生成模块 APK」→ 发给朋友")
 

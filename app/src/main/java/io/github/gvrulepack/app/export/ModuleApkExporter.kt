@@ -79,6 +79,13 @@ object ModuleApkExporter {
         require(config.packageName.matches(Regex("[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z][a-zA-Z0-9_]*)+"))) {
             "包名格式不合法：${config.packageName}"
         }
+        // versionName 会拼进导出文件名（曾存在 `a/../b` 路径穿越）；白名单同时保留中文等文字
+        require(config.versionName.matches(Regex("[\\p{L}\\p{N}._-]+"))) {
+            "版本名含非法字符（只允许字母/数字/点/下划线/中划线）：${config.versionName}"
+        }
+        require(config.versionCode in 1..2_100_000_000) {
+            "versionCode 必须在 1..2100000000：${config.versionCode}"
+        }
 
         // 1) 解析规则，拿作用域列表
         val parsed = RuleBundleParser.parse(rulesBundleJson)

@@ -11,8 +11,12 @@ plugins {
 // ---------------------------------------------------------------------------
 def cfgApplicationId = (findProperty("cfgApplicationId") ?: "io.github.gvrulepack.app").toString()
 def cfgAppLabel = (findProperty("cfgAppLabel") ?: "GV 规则工坊").toString()
-def cfgVersionCode = (findProperty("cfgVersionCode") ?: "3").toString().toInteger()
-def cfgVersionName = (findProperty("cfgVersionName") ?: "1.2.0").toString()
+// 版本默认值来自 version.properties（单一来源），cfg 属性仍可覆盖
+def vp = new Properties()
+def vpFile = rootProject.file("version.properties")
+if (vpFile.exists()) { vpFile.withInputStream { vp.load(it) } }
+def cfgVersionCode = (findProperty("cfgVersionCode") ?: vp.getProperty("versionCode", "1")).toString().toInteger()
+def cfgVersionName = (findProperty("cfgVersionName") ?: vp.getProperty("versionName", "0.0.0")).toString()
 def cfgKeystore = findProperty("cfgKeystore")?.toString()
 def cfgKeystorePassword = findProperty("cfgKeystorePassword")?.toString()
 def cfgKeyAlias = findProperty("cfgKeyAlias")?.toString()

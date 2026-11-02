@@ -27,12 +27,9 @@ class GvFileProvider : ContentProvider() {
         val base = File(ctx.cacheDir, EXPORT_DIR)
         val file = File(base, uri.lastPathSegment!!)
         require(file.canonicalPath.startsWith(base.canonicalPath + File.separator)) { "path escape: $uri" }
-        val flags = if (mode.contains("w")) {
-            ParcelFileDescriptor.MODE_READ_WRITE or ParcelFileDescriptor.MODE_CREATE
-        } else {
-            ParcelFileDescriptor.MODE_READ_ONLY
-        }
-        return ParcelFileDescriptor.open(file, flags)
+        // 只读：本 Provider 只服务「分享/安装 APK」，开放写模式会让被授权方
+        // 在安装前截断/覆写导出的 APK（mode 参数不再参与决定）
+        return ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
     }
 
     override fun query(
